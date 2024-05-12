@@ -14,6 +14,7 @@ import java.util.regex.Pattern
 import java.util.stream.Stream
 import java.util.stream.StreamSupport
 import kotlin.NoSuchElementException
+import kotlin.streams.toList
 
 class CSVReader(
     path: Path,
@@ -116,3 +117,5 @@ class CSVReader(
 fun iterateByLine(path: Path): Iterator<Array<String>> = CSVReader(path).iterator()
 
 fun streamByLine(path: Path): Stream<Array<String>> = CSVReader(path).lines()
+
+fun listByLine(path: Path): List<Array<String>> = streamByLine(path).toList()
