@@ -5,26 +5,18 @@ import ca.uhn.fhir.model.api.Include
 import ca.uhn.fhir.rest.client.api.IGenericClient
 import ca.uhn.fhir.rest.gclient.ICriterion
 import ca.uhn.fhir.rest.gclient.IParam
-import ca.uhn.fhir.rest.gclient.IQuery
 import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
 import kotlinx.cli.required
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.buffer
 import org.hl7.fhir.r4.model.Specimen
 import kotlin.io.path.Path
-import org.medic.cxx.util.csv.iterateByLine
-import org.medic.cxx.util.csv.streamByLine
-import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.forEach
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.stream.consumeAsFlow
 import org.hl7.fhir.r4.model.Bundle
 import org.hl7.fhir.r4.model.Consent
-import org.medic.cxx.evaluation.EvaluationPattern
+import org.medic.cxx.evaluation.pattern
 import org.medic.cxx.util.csv.listByLine
 import java.util.concurrent.Executors
-import kotlin.streams.toList
+
 
 private val threadPoolSize = Runtime.getRuntime().availableProcessors()
 private val threadPool = Executors.newFixedThreadPool(threadPoolSize)
@@ -46,9 +38,12 @@ suspend fun main(args: Array<String>)
     val fhirClient = fhirCtx.newRestfulGenericClient(serverUrl)
 
     // Build Consent evaluation pattern
-    val consentPattern = EvaluationPattern<Consent>()
-        .addCriterion({ v -> this.status == v }, Consent.ConsentState.ACTIVE)
-        .addCriterion({ _ -> this.provision != null }, Unit)
+    val consentPattern = pattern<Consent> {
+        check { status == Consent.ConsentState.ACTIVE }
+        path({ provision }) {
+            check { type == Consent.ConsentProvisionType.PERMIT }
+        }
+    }
 
     // streamByLine(queryResultFilePath).map { it.joinToString(", ") }.forEach{ println(it) }
     coroutineScope {
