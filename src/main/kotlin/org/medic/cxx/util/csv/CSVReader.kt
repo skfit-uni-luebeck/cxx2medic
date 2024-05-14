@@ -21,7 +21,7 @@ class CSVReader(
     private val separator: Char = ',',
     private val quote: Char = '"',
     private val escapeStrategy: EscapeStrategy = BACKSLASH,
-    val hasHeader: Boolean = true
+    private val hasHeader: Boolean = true
 ): Iterable<Array<String>>, Finite, Closeable
 {
 
@@ -31,15 +31,15 @@ class CSVReader(
         private fun splitLine(line: String, separator: Char, quote: Char, escapeStrategy: EscapeStrategy): Array<String>
         {
             val pattern = buildRegex(separator, quote, escapeStrategy)
-            return pattern.split(line)
+            return pattern.split(line).map { cell -> cell.drop(1).dropLast(1) }.toTypedArray()
         }
 
         private fun buildRegex(separator: Char, quote: Char, escapeStrategy: EscapeStrategy): Pattern
         {
             if (escapeStrategy != BACKSLASH)
                 throw UnsupportedValueException("Unsupported escape strategy: ${escapeStrategy.name}")
-            val quoteStr = if (quote == '"') "\\\"" else "$quote"
-            val template = "(?x)${separator}(?=(?:[^$quoteStr]*$quoteStr[^$quoteStr]*$quoteStr)*[^$quoteStr]*\$)"
+            val quoteStr = if (quote == '"') "\"" else "$quote"
+            val template = "(?x)$separator(?=(?:[^$quoteStr]*$quoteStr[^$quoteStr]*$quoteStr)*[^$quoteStr]*$)"
             return Pattern.compile(template)
         }
 
