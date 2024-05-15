@@ -1,10 +1,9 @@
 package org.medic.cxx.evaluation
 
 import java.lang.NullPointerException
-import kotlin.math.E
 
 class Pattern<TARGET: Any>(
-    private val reductionFunction: (Boolean, Boolean) -> Boolean = Boolean::and,
+    private val reductionFunction: (List<Boolean>) -> Boolean = Reducers.and,
 ): Evaluable<TARGET>
 {
 
@@ -45,7 +44,7 @@ class Pattern<TARGET: Any>(
     fun or(disjunction: Pattern<TARGET>.() -> Unit)
     {
         @Suppress("UNCHECKED_CAST")
-        this.conditions.add(Triple(Functions::identity, pattern(Boolean::or, disjunction), false)
+        this.conditions.add(Triple(Functions::identity, pattern(Reducers.or, disjunction), false)
                 as Triple<TARGET.() -> Any?, Evaluable<Any>, Boolean>
         )
         return
@@ -54,7 +53,16 @@ class Pattern<TARGET: Any>(
     fun and(conjunction: Pattern<TARGET>.() -> Unit)
     {
         @Suppress("UNCHECKED_CAST")
-        this.conditions.add(Triple(Functions::identity, pattern(Boolean::and, conjunction), false)
+        this.conditions.add(Triple(Functions::identity, pattern(Reducers.and, conjunction), false)
+                as Triple<TARGET.() -> Any?, Evaluable<Any>, Boolean>
+        )
+        return
+    }
+
+    fun not(evaluable: Evaluable<TARGET>)
+    {
+        @Suppress("UNCHECKED_CAST")
+        this.conditions.add(Triple(Functions::identity, Evaluable<TARGET>{ target -> evaluable.evaluate(target).not() }, false)
                 as Triple<TARGET.() -> Any?, Evaluable<Any>, Boolean>
         )
         return
@@ -66,7 +74,20 @@ class Pattern<TARGET: Any>(
         @Suppress("UNCHECKED_CAST")
         this.conditions.add(Triple(path, Evaluable<TYPE>{ coll ->
             if (coll.isEmpty()) return@Evaluable false
-            coll.map { elem -> pattern(initializer=block).evaluate(elem) }.reduce(Boolean::or)
+            coll.map { elem -> pattern(initializer=block).evaluate(elem) }.run(Reducers.or)
+        }, false)
+                as Triple<TARGET.() -> Any?, Evaluable<Any>, Boolean>
+        )
+        return
+    }
+
+    // TODO: Rework method to reduce instantiation of Pattern class
+    fun <TYPE: Collection<ELEMENT>, ELEMENT: Any> allOf(path: TARGET.() -> TYPE, block: Pattern<ELEMENT>.() -> Unit)
+    {
+        @Suppress("UNCHECKED_CAST")
+        this.conditions.add(Triple(path, Evaluable<TYPE>{ coll ->
+            if (coll.isEmpty()) return@Evaluable true
+            coll.map { elem -> pattern(initializer=block).evaluate(elem) }.run(Reducers.and)
         }, false)
                 as Triple<TARGET.() -> Any?, Evaluable<Any>, Boolean>
         )
@@ -79,7 +100,7 @@ class Pattern<TARGET: Any>(
         @Suppress("UNCHECKED_CAST")
         this.conditions.add(Triple(path, Evaluable<TYPE>{ coll ->
             if (coll.isEmpty()) return@Evaluable true
-            coll.map { elem -> pattern(initializer=block).evaluate(elem).not() }.reduce(Boolean::and)
+            coll.map { elem -> pattern(initializer=block).evaluate(elem).not() }.run(Reducers.and)
         }, false)
                 as Triple<TARGET.() -> Any?, Evaluable<Any>, Boolean>
         )
@@ -92,17 +113,17 @@ class Pattern<TARGET: Any>(
         return this.conditions.map {
             val scopedTarget = it.first(target) ?: return it.third
             it.second.evaluate(scopedTarget)
-        }.reduce(this.reductionFunction)
+        }.run(reductionFunction)
     }
 
 }
 
 fun <TARGET: Any> pattern(
-    reductionFunction: (Boolean, Boolean) -> Boolean = Boolean::and,
+    reductionFunction: List<Boolean>.() -> Boolean = Reducers.and,
     initializer: Pattern<TARGET>.() -> Unit
 ): Pattern<TARGET> = Pattern<TARGET>(reductionFunction).apply(initializer)
 
-// TODO: Check how well such code gets inlined and whether or not there are other solution for null safety
+// TODO: Check whether or not there are other solution for null safety
 inline fun <TARGET, TYPE> wrapNullSafe(crossinline f: (TARGET) -> TYPE, default: TYPE): (TARGET) -> TYPE =
     { target -> try { f(target) } catch (esc: NullPointerException) { default } }
 

@@ -13,33 +13,30 @@ import org.hl7.fhir.r4.model.*
 import kotlin.io.path.Path
 import org.medic.cxx.evaluation.pattern
 import org.medic.cxx.util.csv.listByLine
+import org.medic.cxx.util.http.POST
 import java.math.BigDecimal
 import java.util.*
-import java.util.concurrent.Executors
-import kotlin.reflect.typeOf
 
-
-private val threadPoolSize = Runtime.getRuntime().availableProcessors()
-private val threadPool = Executors.newFixedThreadPool(threadPoolSize)
-private val dispatcher = threadPool.asCoroutineDispatcher()
-private val scope = CoroutineScope(dispatcher)
 
 private val fhirCtx = FhirContext.forR4()
+private val jsonParser = fhirCtx.newJsonParser()
 
 @OptIn(ExperimentalStdlibApi::class)
 suspend fun main(args: Array<String>)
 {
 
     val parser = ArgParser("argParser")
-    val input by parser.option(ArgType.String, "input", "i", description = "Input file").required()
-    val output by parser.option(ArgType.String, "output", "o", description = "Output file").required()
+    val inputFile by parser.option(ArgType.String, "input-file", "i", description = "Input file").required()
+    val targetUrl by parser.option(ArgType.String, "target-url", "t", description = "Target URL").required()
     val serverUrl by parser.option(ArgType.String, "server-url", "s", description = "FHIR server URL").required()
     parser.parse(args)
 
-    val queryResultFilePath = Path(input)
+    val queryResultFilePath = Path(inputFile)
     val fhirClient = fhirCtx.newRestfulGenericClient(serverUrl)
     val currentDate = Date()
     val idGenerator = Random()
+
+    // NOTE: The most "FHIR" way would be using StructureDefinition resources with encoded constraints
 
     // Build Consent evaluation pattern
     val consentPattern = pattern<Consent> {
@@ -107,6 +104,10 @@ suspend fun main(args: Array<String>)
                     {
                         // TODO: Further processing
                         println("[$processingId] Resources matched pattern. Exporting")
+                        val encodedSpecimen = jsonParser.encodeToString(specimen)
+                        val response = POST(targetUrl, encodedSpecimen)
+
+                        println("[$processingId] Received response with status code ${response.statusCode()}")
                     }
                     else {
                         println("[$processingId] Resources did not match patterns. Discarding")
