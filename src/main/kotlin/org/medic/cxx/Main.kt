@@ -43,10 +43,12 @@ suspend fun main(args: Array<String>)
         // Active consent resource
         check { status == Consent.ConsentState.ACTIVE }
         path({ provision }) {
+            // Provision validity has to include current point in time
             path({ period }) {
                 check { start < currentDate }
                 checkIfExists { end > currentDate }
             }
+            // Purpose reflecting consent type required for export
             anyOf({ purpose }) {
                 check { system == "https://fhir.centraxx.de/system/consent/type" }
                 check { code == "2IC" }

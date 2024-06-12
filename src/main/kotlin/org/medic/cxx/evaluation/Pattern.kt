@@ -3,7 +3,7 @@ package org.medic.cxx.evaluation
 import java.lang.NullPointerException
 
 class Pattern<TARGET: Any>(
-    private val reductionFunction: (List<Boolean>) -> Boolean = Reducers.and,
+    private val reductionFunction: (List<Boolean>) -> Boolean = Reducers.AND,
 ): Evaluable<TARGET>
 {
 
@@ -19,13 +19,14 @@ class Pattern<TARGET: Any>(
 
     fun <TYPE: Any> ifPathExists(path: TARGET.() -> TYPE?, block: Pattern<TYPE>.() -> Unit)
     {
-        val safePath = wrapCastSafe<TARGET, TYPE>(path, null)
+        val safePath = wrapCastSafe(path, null)
         @Suppress("UNCHECKED_CAST")
         this.conditions.add(Triple(safePath, Pattern<TYPE>().apply(block) as Evaluable<Any>, true))
         return
     }
 
-    fun check(condition: TARGET.() -> Boolean) {
+    fun check(condition: TARGET.() -> Boolean)
+    {
         val evaluable = Evaluable<TARGET> { target -> wrapNullSafe(condition, false).invoke(target) }
         @Suppress("UNCHECKED_CAST")
         this.conditions.add(Triple(Functions::identity, evaluable, false)
@@ -33,7 +34,8 @@ class Pattern<TARGET: Any>(
         return
     }
 
-    fun checkIfExists(condition: TARGET.() -> Boolean) {
+    fun checkIfExists(condition: TARGET.() -> Boolean)
+    {
         val evaluable = Evaluable<TARGET> { target -> wrapNullSafe(condition, true).invoke(target) }
         @Suppress("UNCHECKED_CAST")
         this.conditions.add(Triple(Functions::identity, evaluable, true)
@@ -44,7 +46,7 @@ class Pattern<TARGET: Any>(
     fun or(disjunction: Pattern<TARGET>.() -> Unit)
     {
         @Suppress("UNCHECKED_CAST")
-        this.conditions.add(Triple(Functions::identity, pattern(Reducers.or, disjunction), false)
+        this.conditions.add(Triple(Functions::identity, pattern(Reducers.OR, disjunction), false)
                 as Triple<TARGET.() -> Any?, Evaluable<Any>, Boolean>
         )
         return
@@ -53,7 +55,7 @@ class Pattern<TARGET: Any>(
     fun and(conjunction: Pattern<TARGET>.() -> Unit)
     {
         @Suppress("UNCHECKED_CAST")
-        this.conditions.add(Triple(Functions::identity, pattern(Reducers.and, conjunction), false)
+        this.conditions.add(Triple(Functions::identity, pattern(Reducers.AND, conjunction), false)
                 as Triple<TARGET.() -> Any?, Evaluable<Any>, Boolean>
         )
         return
@@ -74,7 +76,7 @@ class Pattern<TARGET: Any>(
         @Suppress("UNCHECKED_CAST")
         this.conditions.add(Triple(path, Evaluable<TYPE>{ coll ->
             if (coll.isEmpty()) return@Evaluable false
-            coll.map { elem -> pattern(initializer=block).evaluate(elem) }.run(Reducers.or)
+            coll.map { elem -> pattern(initializer=block).evaluate(elem) }.run(Reducers.OR)
         }, false)
                 as Triple<TARGET.() -> Any?, Evaluable<Any>, Boolean>
         )
@@ -87,7 +89,7 @@ class Pattern<TARGET: Any>(
         @Suppress("UNCHECKED_CAST")
         this.conditions.add(Triple(path, Evaluable<TYPE>{ coll ->
             if (coll.isEmpty()) return@Evaluable true
-            coll.map { elem -> pattern(initializer=block).evaluate(elem) }.run(Reducers.and)
+            coll.map { elem -> pattern(initializer=block).evaluate(elem) }.run(Reducers.AND)
         }, false)
                 as Triple<TARGET.() -> Any?, Evaluable<Any>, Boolean>
         )
@@ -100,7 +102,7 @@ class Pattern<TARGET: Any>(
         @Suppress("UNCHECKED_CAST")
         this.conditions.add(Triple(path, Evaluable<TYPE>{ coll ->
             if (coll.isEmpty()) return@Evaluable true
-            coll.map { elem -> pattern(initializer=block).evaluate(elem).not() }.run(Reducers.and)
+            coll.map { elem -> pattern(initializer=block).evaluate(elem).not() }.run(Reducers.AND)
         }, false)
                 as Triple<TARGET.() -> Any?, Evaluable<Any>, Boolean>
         )
@@ -119,7 +121,7 @@ class Pattern<TARGET: Any>(
 }
 
 fun <TARGET: Any> pattern(
-    reductionFunction: List<Boolean>.() -> Boolean = Reducers.and,
+    reductionFunction: List<Boolean>.() -> Boolean = Reducers.AND,
     initializer: Pattern<TARGET>.() -> Unit
 ): Pattern<TARGET> = Pattern<TARGET>(reductionFunction).apply(initializer)
 
