@@ -62,7 +62,7 @@ suspend fun main(args: Array<String>)
         // Exclude aliquot groups as they do not represent real physical samples
         noneOf({ extension }) {
             check { url == "https://fhir.centraxx.de/extension/sampleCategory" }
-            path({ value as Coding? }) {
+            pathAs<Coding>({ value }) {
                 check { system == "https://fhir.centraxx.de/system/sampleCategory" }
                 check { code == "ALIQUOTGROUP" }
                 check { display == "Aliquotgruppe" }

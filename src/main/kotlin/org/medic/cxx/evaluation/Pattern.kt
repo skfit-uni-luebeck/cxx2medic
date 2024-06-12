@@ -11,11 +11,14 @@ class Pattern<TARGET: Any>(
 
     fun <TYPE: Any> path(path: TARGET.() -> TYPE?, block: Pattern<TYPE>.() -> Unit)
     {
-        val safePath = wrapCastSafe(path, null)
+        val safePath = wrapCastSafe<TARGET, TYPE>(path, null)
         @Suppress("UNCHECKED_CAST")
         this.conditions.add(Triple(safePath, Pattern<TYPE>().apply(block) as Evaluable<Any>, false))
         return
     }
+
+    fun <TYPE: Any> pathAs(path: TARGET.() -> Any?, block: Pattern<TYPE>.() -> Unit) =
+        @Suppress("UNCHECKED_CAST") path(path as TARGET.() -> TYPE, block)
 
     fun <TYPE: Any> ifPathExists(path: TARGET.() -> TYPE?, block: Pattern<TYPE>.() -> Unit)
     {
@@ -24,6 +27,9 @@ class Pattern<TARGET: Any>(
         this.conditions.add(Triple(safePath, Pattern<TYPE>().apply(block) as Evaluable<Any>, true))
         return
     }
+
+    fun <TYPE: Any> ifPathExistsAs(path: TARGET.() -> Any?, block: Pattern<TYPE>.() -> Unit) =
+        @Suppress("UNCHECKED_CAST") ifPathExists(path as TARGET.() -> TYPE, block)
 
     fun check(condition: TARGET.() -> Boolean)
     {
@@ -130,5 +136,5 @@ inline fun <TARGET, TYPE> wrapNullSafe(crossinline f: (TARGET) -> TYPE, default:
     { target -> try { f(target) } catch (esc: NullPointerException) { default } }
 
 @Suppress("UNCHECKED_CAST")
-inline fun <TYPE1, TYPE2> wrapCastSafe(crossinline f: (TYPE1) -> TYPE2?, default: TYPE2?): (TYPE1) -> TYPE2? =
+inline fun <TYPE1, TYPE2> wrapCastSafe(crossinline f: (TYPE1) -> Any?, default: TYPE2?): (TYPE1) -> TYPE2? =
     { target -> try { f(target) as TYPE2 } catch (exc: ClassCastException) { default } }
