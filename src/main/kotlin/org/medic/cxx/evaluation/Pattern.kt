@@ -7,9 +7,9 @@ class Pattern<TARGET: Any>(
 ): Evaluable<TARGET>
 {
 
-    private val conditions = mutableListOf<Triple<TARGET.() -> Any?, Evaluable<Any>, Boolean>>()
+    val conditions = mutableListOf<Triple<TARGET.() -> Any?, Evaluable<Any>, Boolean>>()
 
-    fun <TYPE: Any> path(path: TARGET.() -> TYPE?, block: Pattern<TYPE>.() -> Unit)
+    inline fun <reified TYPE: Any> path(crossinline path: TARGET.() -> TYPE?, block: Pattern<TYPE>.() -> Unit)
     {
         val safePath = wrapCastSafe(path, null)
         @Suppress("UNCHECKED_CAST")
@@ -17,7 +17,15 @@ class Pattern<TARGET: Any>(
         return
     }
 
-    fun <TYPE: Any> ifPathExists(path: TARGET.() -> TYPE?, block: Pattern<TYPE>.() -> Unit)
+    inline fun <reified TYPE: Any> pathOfType(crossinline path: TARGET.() -> Any?, block: Pattern<TYPE>.() -> Unit)
+    {
+        val safePath = wrapAnyCastSafe<TARGET, TYPE>(path, null)
+        @Suppress("UNCHECKED_CAST")
+        this.conditions.add(Triple(safePath, Pattern<TYPE>().apply(block) as Evaluable<Any>, false))
+        return
+    }
+
+    inline fun <reified TYPE: Any> ifPathExists(crossinline path: TARGET.() -> TYPE?, block: Pattern<TYPE>.() -> Unit)
     {
         val safePath = wrapCastSafe(path, null)
         @Suppress("UNCHECKED_CAST")
@@ -25,9 +33,17 @@ class Pattern<TARGET: Any>(
         return
     }
 
-    fun check(condition: TARGET.() -> Boolean)
+    inline fun <reified TYPE: Any> ifPathExistsOfType(crossinline path: TARGET.() -> Any?, block: Pattern<TYPE>.() -> Unit)
     {
-        val evaluable = Evaluable<TARGET> { target -> wrapNullSafe(condition, false).invoke(target) }
+        val safePath = wrapAnyCastSafe<TARGET, TYPE>(path, null)
+        @Suppress("UNCHECKED_CAST")
+        this.conditions.add(Triple(safePath, Pattern<TYPE>().apply(block) as Evaluable<Any>, true))
+        return
+    }
+
+    fun check(name: String? = null, condition: TARGET.() -> Boolean)
+    {
+        val evaluable = Evaluable<TARGET> { target -> if (name != null) println(name); wrapNullSafe(condition, false).invoke(target) }
         @Suppress("UNCHECKED_CAST")
         this.conditions.add(Triple(Functions::identity, evaluable, false)
                 as Triple<TARGET.() -> Any, Evaluable<Any>, Boolean>)
@@ -102,7 +118,7 @@ class Pattern<TARGET: Any>(
         @Suppress("UNCHECKED_CAST")
         this.conditions.add(Triple(path, Evaluable<TYPE>{ coll ->
             if (coll.isEmpty()) return@Evaluable true
-            coll.map { elem -> pattern(initializer=block).evaluate(elem).not() }.run(Reducers.AND)
+            coll.map { elem -> println("Elem: $elem"); pattern(initializer=block).evaluate(elem).not() }.run(Reducers.AND)
         }, false)
                 as Triple<TARGET.() -> Any?, Evaluable<Any>, Boolean>
         )
@@ -114,6 +130,7 @@ class Pattern<TARGET: Any>(
         if (this.conditions.size == 0) return true
         return this.conditions.map {
             val scopedTarget = it.first(target) ?: return it.third
+            println("Scoped target: $scopedTarget")
             it.second.evaluate(scopedTarget)
         }.run(reductionFunction)
     }
@@ -125,10 +142,22 @@ fun <TARGET: Any> pattern(
     initializer: Pattern<TARGET>.() -> Unit
 ): Pattern<TARGET> = Pattern<TARGET>(reductionFunction).apply(initializer)
 
-// TODO: Check whether or not there are other solution for null safety
+// TODO: Check whether or not there are other solutions for null safety
 inline fun <TARGET, TYPE> wrapNullSafe(crossinline f: (TARGET) -> TYPE, default: TYPE): (TARGET) -> TYPE =
-    { target -> try { f(target) } catch (esc: NullPointerException) { default } }
+    { target -> try { f(target) } catch (exc: NullPointerException) { default } }
+
+inline fun <TYPE1, reified TYPE2> wrapCastSafe(crossinline f: (TYPE1) -> TYPE2?, default: TYPE2?): (TYPE1) -> TYPE2? =
+    { target -> try { f(target) as TYPE2 } catch (exc: ClassCastException) { default } }
+
+inline fun <TYPE1, reified TYPE2> wrapAnyCastSafe(crossinline f: (TYPE1) -> Any?, default: TYPE2?): (TYPE1) -> TYPE2? =
+    { target -> try { f(target) as TYPE2 } catch (exc: ClassCastException) { default } }
+
+//@JvmName("wrapAnyCastSafe2")
+//inline fun <TYPE> wrapAnyCastSafe(crossinline f: (Any) -> Any?, default: TYPE?): (Any) -> TYPE? =
+//    wrapAnyCastSafe<Any, TYPE>(f, default)
+
+inline fun <T1, T2> test(t: T1, f: (T1) -> T2?) = println(" Cast: ${if(t != null) t!!::class.simpleName else "null"}: ${if (f(t) != null) f(t)!!::class.simpleName else "null"}")
 
 @Suppress("UNCHECKED_CAST")
-inline fun <TYPE1, TYPE2> wrapCastSafe(crossinline f: (TYPE1) -> TYPE2?, default: TYPE2?): (TYPE1) -> TYPE2? =
+inline fun <reified TYPE1, reified TYPE2> b(crossinline f: (TYPE1) -> Any?, default: TYPE2?): (TYPE1) -> TYPE2? =
     { target -> try { f(target) as TYPE2 } catch (exc: ClassCastException) { default } }

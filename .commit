@@ -1,0 +1,4 @@
+Pattern:
+ - Fix variable typo in wrapNullSage function
+ - Add typed path functions to handle ambigious types
+   (i.e. polymorphic elements)
