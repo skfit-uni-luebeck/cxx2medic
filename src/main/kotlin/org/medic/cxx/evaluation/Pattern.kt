@@ -11,11 +11,12 @@ class Pattern<TARGET: Any>(
 
     inline fun <reified TYPE: Any> path(crossinline path: TARGET.() -> TYPE?, block: Pattern<TYPE>.() -> Unit)
     {
-        val safePath = wrapCastSafe(path, null)
+        val safePath = wrapCastSafe<TARGET, TYPE>(path, null)
         @Suppress("UNCHECKED_CAST")
         this.conditions.add(Triple(safePath, Pattern<TYPE>().apply(block) as Evaluable<Any>, false))
         return
     }
+
 
     inline fun <reified TYPE: Any> pathOfType(crossinline path: TARGET.() -> Any?, block: Pattern<TYPE>.() -> Unit)
     {
