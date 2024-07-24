@@ -79,7 +79,6 @@ suspend fun main(args: Array<String>)
         }
     }
 
-    // streamByLine(queryResultFilePath).map { it.joinToString(", ") }.forEach{ println(it) }
     coroutineScope {
 
         val patientMap = mutableMapOf<String, Patient>()
@@ -107,11 +106,6 @@ suspend fun main(args: Array<String>)
                         fhirClient.read<Consent>(consentId)?: throw Exception("Could not find patient with ID '$consentId'")
                     val consent = consentMap[consentId]?: throw Exception("No patient with ID '$consentId'")
 
-                    //val filters = listOf(Specimen.RES_ID.exactly().code(cells[0]))
-                    //val includes = listOf(Specimen.INCLUDE_PATIENT)
-                    //val revIncludes = listOf(Consent.INCLUDE_PATIENT.asRecursive())
-                    //val specimenAndPatientBundle: Bundle = requestSpecimen(fhirClient, filters, includes, revIncludes)
-
                     // Retrieve Specimen and Consent resource from Bundle resource
                     println("[$processingId] Retrieved FHIR data from server. Start processing")
                     if (specimen == null) {
@@ -120,7 +114,7 @@ suspend fun main(args: Array<String>)
                     else {
                         // If Specimen resource is present, continue processing
                         if (consentPattern.evaluate(consent) && specimenPattern.evaluate(specimen)) {
-                            println("[$processingId] Resources matched pattern. Exporting")
+                            println("[$processingId] Resources matched patterns. Exporting")
 
                             specimen.subject.apply {
                                 type = "Patient"
@@ -142,7 +136,7 @@ suspend fun main(args: Array<String>)
                             val encodedSpecimen = jsonParser.encodeToString(specimen)
                             val response = POST(targetUrl, encodedSpecimen)
 
-                            println("[$processingId] Received response with status code ${response.statusCode()}\n${response.body()}")
+                            println("[$processingId] Received response with status code ${response.statusCode()}")
                         }
                         else {
                             println("[$processingId] Resources did not match patterns. Discarding")
@@ -158,23 +152,5 @@ suspend fun main(args: Array<String>)
 
 }
 
-inline fun <reified TYPE: IBaseResource> IGenericClient.read(id: String) =
+inline fun <reified TYPE: IBaseResource> IGenericClient.read(id: String): TYPE =
     this.read().resource(TYPE::class.java).withId(id).execute()
-
-/*
-fun requestSpecimen(
-    client: IGenericClient,
-    filters: List<ICriterion<out IParam>>?,
-    includes: List<Include>?,
-    revIncludes: List<Include>?
-): Bundle
-{
-    val query = client.search<Bundle>()
-        .forResource(Specimen::class.java)
-        .include(Specimen.INCLUDE_SUBJECT)
-    filters?.forEach { filter -> query.where(filter)}
-    includes?.forEach { include -> query.include(include)}
-    revIncludes?.forEach {revInclude -> query.revInclude(revInclude)}
-    return query.execute()
-}
- */

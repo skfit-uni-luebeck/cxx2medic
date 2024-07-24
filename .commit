@@ -1,4 +1,15 @@
 Pattern:
- - Fix variable typo in wrapNullSage function
- - Add typed path functions to handle ambigious types
-   (i.e. polymorphic elements)
+ - Fix issue caused by NullPointerException if
+   cast of null references was attempted: Add
+   method to cover both save casting and null
+   safety
+
+Main:
+ - Change requests made to the FHIR server to
+   conform to capabilities of CentraXX FHIR
+   facade
+ - Change specimen pattern to match specimen
+   resource having no content left
+ - Add manipulation of specimen resource to
+   include patient (subject) reference as well
+   as reference to consent via custom extension
