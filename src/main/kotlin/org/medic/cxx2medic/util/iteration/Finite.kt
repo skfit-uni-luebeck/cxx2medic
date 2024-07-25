@@ -1,4 +1,4 @@
-package org.medic.cxx.util.iteration
+package org.medic.cxx2medic.util.iteration
 
 interface Finite {
 

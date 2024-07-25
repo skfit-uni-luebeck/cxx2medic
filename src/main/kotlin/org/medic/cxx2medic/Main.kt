@@ -1,10 +1,7 @@
-package org.medic.cxx
+package org.medic.cxx2medic
 
 import ca.uhn.fhir.context.FhirContext
-import ca.uhn.fhir.model.api.Include
 import ca.uhn.fhir.rest.client.api.IGenericClient
-import ca.uhn.fhir.rest.gclient.ICriterion
-import ca.uhn.fhir.rest.gclient.IParam
 import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
 import kotlinx.cli.required
@@ -12,10 +9,9 @@ import kotlinx.coroutines.*
 import org.hl7.fhir.instance.model.api.IBaseResource
 import org.hl7.fhir.r4.model.*
 import kotlin.io.path.Path
-import org.medic.cxx.evaluation.pattern
-import org.medic.cxx.util.csv.listByLine
-import org.medic.cxx.util.http.POST
-import java.math.BigDecimal
+import org.medic.cxx2medic.evaluation.pattern
+import org.medic.cxx2medic.util.csv.listByLine
+import org.medic.cxx2medic.util.http.POST
 import java.util.*
 
 

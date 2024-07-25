@@ -1,12 +1,12 @@
-package org.medic.cxx.util.csv
+package org.medic.cxx2medic.util.csv
 
-import org.medic.cxx.exception.UnsupportedValueException
-import org.medic.cxx.util.iteration.EscapeStrategy
+import org.medic.cxx2medic.exception.UnsupportedValueException
+import org.medic.cxx2medic.util.iteration.EscapeStrategy
 import java.io.BufferedReader
 import java.nio.file.Path
-import org.medic.cxx.util.iteration.EscapeStrategy.*
-import org.medic.cxx.util.iteration.Finite
-import org.medic.cxx.util.iteration.ResponsibleIterator
+import org.medic.cxx2medic.util.iteration.EscapeStrategy.*
+import org.medic.cxx2medic.util.iteration.Finite
+import org.medic.cxx2medic.util.iteration.ResponsibleIterator
 import java.io.Closeable
 import java.util.*
 import java.util.function.Consumer
@@ -14,7 +14,6 @@ import java.util.regex.Pattern
 import java.util.stream.Stream
 import java.util.stream.StreamSupport
 import kotlin.NoSuchElementException
-import kotlin.streams.toList
 
 class CSVReader(
     path: Path,

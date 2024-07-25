@@ -1,4 +1,4 @@
-package org.medic.cxx.util.http
+package org.medic.cxx2medic.util.http
 
 import java.net.URI
 import java.net.http.HttpClient

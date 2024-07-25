@@ -37,6 +37,12 @@ build/
 ### Mac OS ###
 .DS_Store
 
+### Maven ###
+.mvn/*
+!.mvn/wrapper/
+.mvn/wrapper/*
+!.mvn/wrapper/maven-wrapper.properties
+
 ### Own ###
 /tmp/
 /temp/
