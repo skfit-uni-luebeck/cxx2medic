@@ -2,10 +2,12 @@ package org.medic.cxx2medic
 
 import ca.uhn.fhir.context.FhirContext
 import ca.uhn.fhir.rest.client.api.IGenericClient
+import ca.uhn.fhir.rest.server.exceptions.ResourceNotFoundException
 import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
 import kotlinx.cli.required
 import kotlinx.coroutines.*
+import org.apache.logging.log4j.LogManager
 import org.hl7.fhir.instance.model.api.IBaseResource
 import org.hl7.fhir.r4.model.*
 import kotlin.io.path.Path
@@ -13,10 +15,13 @@ import org.medic.cxx2medic.evaluation.pattern
 import org.medic.cxx2medic.util.csv.listByLine
 import org.medic.cxx2medic.util.http.POST
 import java.util.*
+import kotlin.NoSuchElementException
 
 
 private val fhirCtx = FhirContext.forR4()
 private val jsonParser = fhirCtx.newJsonParser()
+
+private val logger = LogManager.getLogger("CXX2NIFI")
 
 @OptIn(ExperimentalStdlibApi::class)
 suspend fun main(args: Array<String>)
@@ -77,8 +82,8 @@ suspend fun main(args: Array<String>)
 
     coroutineScope {
 
-        val patientMap = mutableMapOf<String, Patient>()
-        val consentMap = mutableMapOf<String, Consent>()
+        val patientMap = Collections.synchronizedMap(mutableMapOf<String, Patient>())
+        val consentMap = Collections.synchronizedMap(mutableMapOf<String, Consent>())
 
         listByLine(queryResultFilePath).map { cells ->
             async {
@@ -90,57 +95,70 @@ suspend fun main(args: Array<String>)
 
                     // Retrieve Specimen resource, associated Patient, and Consent resources associated with Patient
                     // resource
-                    println("[$processingId] Retrieving FHIR data for specimen OID $specimenId")
+                    logger.info("[$processingId] Retrieving FHIR data for specimen OID $specimenId")
 
                     // TODO: If same patient or consent is shared by multiple Specimen instances initially requests for
                     //       the same resource might be done anyway. How to avoid this?
-                    val specimen = fhirClient.read<Specimen>(specimenId)
-                    if (patientId !in patientMap) patientMap[patientId] =
-                        fhirClient.read<Patient>(patientId)?: throw Exception("Could not find patient with ID '$patientId'")
-                    val patient = patientMap[patientId]?: throw Exception("No patient with ID '$patientId'")
-                    if (consentId !in consentMap) consentMap[consentId] =
-                        fhirClient.read<Consent>(consentId)?: throw Exception("Could not find patient with ID '$consentId'")
-                    val consent = consentMap[consentId]?: throw Exception("No patient with ID '$consentId'")
+                    val specimen: Specimen
+                    val patient: Patient
+                    val consent: Consent
 
-                    // Retrieve Specimen and Consent resource from Bundle resource
-                    println("[$processingId] Retrieved FHIR data from server. Start processing")
-                    if (specimen == null) {
-                        println("[$processingId] WARNING: No Specimen resource in Bundle. Skipping")
+                    try {
+                        specimen = fhirClient.read<Specimen>(specimenId)
+                        if (patientId !in patientMap) patientMap[patientId] =
+                            fhirClient.read<Patient>(patientId)
+                        patient = patientMap[patientId]!! // Should never be null due to previous handling
+                        if (consentId !in consentMap) consentMap[consentId] =
+                            fhirClient.read<Consent>(consentId)
+                        consent = consentMap[consentId]!! // Should never be null due to previous handling
                     }
-                    else {
-                        // If Specimen resource is present, continue processing
-                        if (consentPattern.evaluate(consent) && specimenPattern.evaluate(specimen)) {
-                            println("[$processingId] Resources matched patterns. Exporting")
+                    catch (exc: ResourceNotFoundException) {
+                        logger.warn("[$processingId] ${exc.message}. Skipping")
+                        return@async
+                    }
+                    catch (exc: Exception) {
+                        logger.warn("[$processingId] Unexpected error occurred. Skipping:\n${exc.stackTraceToString()}")
+                        return@async
+                    }
 
-                            specimen.subject.apply {
-                                type = "Patient"
-                                identifier = patient.identifier.filter { identifierPattern.evaluate(it) }[0]
-                            }
+                    logger.info("[$processingId] Retrieved FHIR data from server. Start processing")
+                    if (consentPattern.evaluate(consent) && specimenPattern.evaluate(specimen)) {
+                        logger.info("[$processingId] Resources matched patterns. Exporting")
 
-                            specimen.extension.add(Extension().apply {
-                                url = "https://fhir.medicsh.de/StructureDefinition/ext-specimen-consent-identifier"
-                                setValue(Identifier().apply {
-                                    type.addCoding().apply {
-                                        system = "https://fhir.centraxx.de/system/idContainerType"
-                                        code = "KIS-ID"
-                                        display = "ORBIS-ID"
-                                    }
-                                    value = consentId
-                                })
+                        specimen.subject.apply {
+                            type = "Patient"
+                            identifier = patient.identifier.filter { identifierPattern.evaluate(it) }[0]
+                        }
+
+                        specimen.extension.add(Extension().apply {
+                            url = "https://fhir.medicsh.de/StructureDefinition/ext-specimen-consent-identifier"
+                            setValue(Identifier().apply {
+                                type.addCoding().apply {
+                                    system = "https://fhir.centraxx.de/system/idContainerType"
+                                    code = "KIS-ID"
+                                    display = "ORBIS-ID"
+                                }
+                                value = consentId
                             })
+                        })
 
-                            val encodedSpecimen = jsonParser.encodeToString(specimen)
-                            val response = POST(targetUrl, encodedSpecimen)
+                        val encodedSpecimen = jsonParser.encodeToString(specimen)
+                        val response = POST(targetUrl, encodedSpecimen)
 
-                            println("[$processingId] Received response with status code ${response.statusCode()}")
+                        if (response.statusCode() == 200) {
+                            logger.info("[$processingId] Received response with status code ${response.statusCode()}")
                         }
                         else {
-                            println("[$processingId] Resources did not match patterns. Discarding")
+                            logger.warn("[$processingId] Unexpected response code ${response.statusCode()}. Expected 200. Continuing")
                         }
+
+                    }
+                    else {
+                        logger.info("[$processingId] Resources did not match patterns. Discarding")
                     }
                 }
                 catch (exc: Exception) {
-                    println("[$processingId] ERROR: Processing failed: ${exc.message}. Continuing\n${exc.stackTraceToString()}")
+                    logger.warn("[$processingId] ERROR: Processing failed: ${exc.message}. Continuing\n${exc.stackTraceToString()}")
                 }
             }
         }.awaitAll()
