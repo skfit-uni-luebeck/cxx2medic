@@ -11,6 +11,12 @@ target/
 *.iws
 *.iml
 *.ipr
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+
+### Kotlin ###
+.kotlin
 
 ### Eclipse ###
 .apt_generated
@@ -20,6 +26,9 @@ target/
 .settings
 .springBeans
 .sts4-cache
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
 
 ### NetBeans ###
 /nbproject/private/
@@ -44,8 +53,10 @@ build/
 !.mvn/wrapper/maven-wrapper.properties
 
 ### Own ###
-/tmp/
-/temp/
+/testdata/
+/config/*
+!/config/README.md
 /.idea/
-.commit
-/.commit
+/.kotlin//.gradle/
+/minio/
+>>>>>>> e191a09 (Initial commit)

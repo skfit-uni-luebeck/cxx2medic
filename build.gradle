@@ -1,0 +1,60 @@
+plugins {
+    id 'org.jetbrains.kotlin.jvm' version '1.9.23'
+    id 'org.springframework.boot' version '3.3.5'
+    id("io.spring.dependency-management") version "1.1.4"
+    id "org.jetbrains.kotlin.plugin.spring" version "2.1.0-Beta2"
+    id "org.jetbrains.kotlin.plugin.serialization" version "1.9.23"
+}
+
+group = 'org.example'
+version = '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.jetbrains.kotlinx:kotlinx-cli-jvm:0.3.6'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0'
+
+    // Spring
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation("org.springframework.boot:spring-boot-starter-integration")
+    implementation 'org.springframework.integration:spring-integration-jdbc'
+    //implementation 'org.springframework.integration:spring-integration-aws:3.0.8'
+    implementation("org.springframework.boot:spring-boot-starter-cache")
+    implementation("org.springframework.security:spring-security-core")
+
+    // MinIO
+    implementation 'io.minio:minio:8.5.14'
+
+    // Jackson
+    implementation 'com.fasterxml.jackson.module:jackson-module-kotlin:2.16.1'
+    implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.16.1'
+
+    // Serialization
+    implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3'
+
+    // Caching
+    implementation("com.github.ben-manes.caffeine:caffeine:3.1.8")
+
+    // Argument Parser
+    implementation("com.xenomachina:kotlin-argparser:2.0.7")
+
+    // FHIR
+    implementation 'ca.uhn.hapi.fhir:hapi-fhir-base:7.6.0'
+    implementation 'ca.uhn.hapi.fhir:hapi-fhir-structures-r4:7.6.0'
+    implementation 'ca.uhn.hapi.fhir:hapi-fhir-client:7.6.0'
+
+    // Database drivers
+    implementation 'org.postgresql:postgresql:42.7.4'
+    implementation 'com.microsoft.sqlserver:mssql-jdbc:12.8.1.jre11'
+
+    // Functional
+    implementation 'io.arrow-kt:arrow-core:1.2.4'
+    implementation 'io.arrow-kt:arrow-fx-coroutines:1.2.4'
+}
+
+kotlin {
+    jvmToolchain(21)
+}
