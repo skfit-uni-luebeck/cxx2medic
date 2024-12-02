@@ -53,6 +53,9 @@ dependencies {
     // Functional
     implementation 'io.arrow-kt:arrow-core:1.2.4'
     implementation 'io.arrow-kt:arrow-fx-coroutines:1.2.4'
+
+    // Client
+    implementation 'com.squareup.okhttp3:okhttp:5.0.0-alpha.14'
 }
 
 kotlin {

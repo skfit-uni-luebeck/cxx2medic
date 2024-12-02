@@ -31,15 +31,15 @@ class MinioStorageService(
             if (!found) {
                 logger.info("Attempting to create bucket '${bucketName}' since it does not exist yet")
                 kotlin.runCatching { client.makeBucket(MakeBucketArgs.builder().bucket(bucketName).build()) }
+                    .onSuccess { logger.info("Created bucket '${bucketName}' successfully") }
                     .onFailure { e -> throw BucketCreationException(bucketName, e) }
             }
-            logger.debug("Putting object '${objectName}' into bucket '$bucketName'")
             kotlin.runCatching {
                 client.putObject(PutObjectArgs.builder().bucket(bucketName).`object`(objectName).stream(
                     stream, stream.available().toLong(), -1
                 ).contentType(contentType).build())
             }.onFailure { e -> throw ObjectStoringException(objectName, bucketName, e) }
-            Unit
+            logger.info("Uploaded object '$objectName' to bucket '$bucketName'")
         }
 
     companion object

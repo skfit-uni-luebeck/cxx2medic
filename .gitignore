@@ -59,4 +59,4 @@ build/
 /.idea/
 /.kotlin//.gradle/
 /minio/
->>>>>>> e191a09 (Initial commit)
+/.commit

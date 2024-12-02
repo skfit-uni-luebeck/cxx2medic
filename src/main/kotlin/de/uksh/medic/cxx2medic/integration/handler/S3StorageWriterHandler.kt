@@ -1,5 +1,6 @@
 package de.uksh.medic.cxx2medic.integration.handler
 
+import de.uksh.medic.cxx2medic.exception.S3Exception
 import de.uksh.medic.cxx2medic.integration.service.S3StorageService
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -23,8 +24,8 @@ class S3StorageWriterHandler(
         val bucketName = if (BUCKET_NAME_HEADER in message.headers) message.headers[BUCKET_NAME_HEADER] as String
                          else defaultBucket
         val (stream, contentType) = when (val payload = message.payload) {
-            String -> Pair(
-                (payload as String).byteInputStream(Charsets.UTF_8),
+            is String -> Pair(
+                payload.byteInputStream(Charsets.UTF_8),
                 message.headers.getOrDefault(MessageHeaders.CONTENT_TYPE, defaultContentType) as String
             )
             else -> Pair(Json.encodeToString(payload).byteInputStream(Charsets.UTF_8), "application/json")
