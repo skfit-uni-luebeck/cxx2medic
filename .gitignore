@@ -58,5 +58,6 @@ build/
 !/config/README.md
 /.idea/
 /.kotlin//.gradle/
+/.gradle/
 /minio/
 /.commit

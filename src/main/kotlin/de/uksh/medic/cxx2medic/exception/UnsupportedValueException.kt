@@ -1,4 +1,4 @@
-package org.medic.cxx2medic.exception
+package de.uksh.medic.cxx2medic.exception
 
 class UnsupportedValueException: Exception
 {

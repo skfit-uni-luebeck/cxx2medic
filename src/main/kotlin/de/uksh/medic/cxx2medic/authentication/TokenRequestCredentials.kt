@@ -13,11 +13,14 @@ enum class GrantType
     CLIENT_CREDENTIALS, PASSWORD, REFRESH_TOKEN
 }
 
-abstract class TokenRequestCredentials(
+sealed class TokenRequestCredentials(
     private val clientId: String,
     private val clientSecret: String
 ): Credentials
 {
+    val clientCredentials: UsernamePasswordCredentials
+        get() = UsernamePasswordCredentials(clientId, clientSecret)
+
     abstract val grantType: GrantType
 
     override fun getUserPrincipal(): Principal = ClientPrincipal(clientId)

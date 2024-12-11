@@ -5,13 +5,14 @@ import arrow.core.Option
 import arrow.core.Some
 import ca.uhn.fhir.context.FhirContext
 import ca.uhn.fhir.rest.client.api.IGenericClient
-import ca.uhn.fhir.rest.server.exceptions.ResourceNotFoundException
+import de.uksh.medic.cxx2medic.authentication.OAuthClientCredentials
+import de.uksh.medic.cxx2medic.authentication.OAuthPasswordCredentials
+import de.uksh.medic.cxx2medic.authentication.OAuthRefreshTokenCredentials
 import org.hl7.fhir.instance.model.api.IBaseResource
 import org.hl7.fhir.r4.model.Consent
 import org.hl7.fhir.r4.model.Patient
 import org.hl7.fhir.r4.model.Specimen
 import de.uksh.medic.cxx2medic.config.FhirSettings
-import de.uksh.medic.cxx2medic.fhir.interception.withOAuth2
 import org.apache.http.auth.Credentials
 import org.apache.logging.log4j.LogManager
 import org.apache.logging.log4j.Logger
@@ -19,6 +20,9 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.cache.annotation.Cacheable
 import org.springframework.stereotype.Service
+import usr.paulolaup.fhir.client.interceptor.oauth.ClientCredentialsOAuthInterceptor
+import usr.paulolaup.fhir.client.interceptor.oauth.PasswordOAuthInterceptor
+import usr.paulolaup.fhir.client.interceptor.oauth.RefreshTokenOAuthInterceptor
 
 @Service
 class CentraXXFhirService(
@@ -34,7 +38,16 @@ class CentraXXFhirService(
     {
         // Activate OAuth authorization if settings reflect its presence
         settings.authorization.onSome { it.oauth.onSome { oauth ->
-            client.withOAuth2(oauth.accessTokenUrl, oauth.getCredentials())
+            client.registerInterceptor(when (val credentials = oauth.getCredentials()) {
+                is OAuthClientCredentials ->
+                    ClientCredentialsOAuthInterceptor(oauth.accessTokenUrl, credentials.clientCredentials)
+                is OAuthRefreshTokenCredentials ->
+                    RefreshTokenOAuthInterceptor(oauth.accessTokenUrl, credentials.clientCredentials)
+                is OAuthPasswordCredentials ->
+                    PasswordOAuthInterceptor(
+                        oauth.accessTokenUrl, credentials.clientCredentials, credentials.usernameAndPassword
+                    )
+            })
         } }
     }
 
