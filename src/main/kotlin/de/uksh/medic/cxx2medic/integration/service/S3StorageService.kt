@@ -7,6 +7,7 @@ import io.minio.BucketExistsArgs
 import io.minio.MakeBucketArgs
 import io.minio.MinioClient
 import io.minio.PutObjectArgs
+import org.apache.http.entity.ContentType
 import org.apache.logging.log4j.LogManager
 import org.apache.logging.log4j.Logger
 import org.springframework.beans.factory.annotation.Autowired
@@ -15,7 +16,7 @@ import java.io.InputStream
 
 interface S3StorageService
 {
-    fun uploadFile(bucketName: String, objectName: String, stream: InputStream, contentType: String): Result<Unit>
+    fun uploadFile(bucketName: String, objectName: String, stream: InputStream, contentType: ContentType): Result<Unit>
 }
 
 @Service
@@ -24,7 +25,7 @@ class MinioStorageService(
 ): S3StorageService
 {
     override fun uploadFile(
-        bucketName: String, objectName: String, stream: InputStream, contentType: String
+        bucketName: String, objectName: String, stream: InputStream, contentType: ContentType
     ): Result<Unit> =
         kotlin.runCatching {
             val found = client.bucketExists(BucketExistsArgs.builder().bucket(bucketName).build())
@@ -37,7 +38,7 @@ class MinioStorageService(
             kotlin.runCatching {
                 client.putObject(PutObjectArgs.builder().bucket(bucketName).`object`(objectName).stream(
                     stream, stream.available().toLong(), -1
-                ).contentType(contentType).build())
+                ).contentType(contentType.toString()).build())
             }.onFailure { e -> throw ObjectStoringException(objectName, bucketName, e) }
             logger.info("Uploaded object '$objectName' to bucket '$bucketName'")
         }
