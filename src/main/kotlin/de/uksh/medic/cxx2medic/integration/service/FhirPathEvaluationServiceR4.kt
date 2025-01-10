@@ -3,8 +3,8 @@ package de.uksh.medic.cxx2medic.integration.service
 import ca.uhn.fhir.context.FhirContext
 import de.uksh.medic.cxx2medic.exception.UnsupportedValueException
 import de.uksh.medic.cxx2medic.fhir.query.FhirQuery
+import de.uksh.medic.cxx2medic.util.evaluateToBoolean
 import de.uksh.medic.cxx2medic.util.getResourceType
-import evaluateToBoolean
 import org.hl7.fhir.r4.fhirpath.FHIRPathEngine
 import org.hl7.fhir.r4.hapi.ctx.HapiWorkerContext
 import org.hl7.fhir.r4.model.Base

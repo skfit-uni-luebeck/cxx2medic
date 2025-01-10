@@ -6,8 +6,8 @@ plugins {
     id "org.jetbrains.kotlin.plugin.serialization" version "1.9.23"
 }
 
-group = 'org.example'
-version = '1.0-SNAPSHOT'
+group = 'de.uksh.medic'
+version = '0.0.1'
 
 dependencies {
     implementation 'org.jetbrains.kotlinx:kotlinx-cli-jvm:0.3.6'
@@ -17,7 +17,6 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation("org.springframework.boot:spring-boot-starter-integration")
     implementation 'org.springframework.integration:spring-integration-jdbc'
-    //implementation 'org.springframework.integration:spring-integration-aws:3.0.8'
     implementation("org.springframework.boot:spring-boot-starter-cache")
     implementation("org.springframework.security:spring-security-core")
 

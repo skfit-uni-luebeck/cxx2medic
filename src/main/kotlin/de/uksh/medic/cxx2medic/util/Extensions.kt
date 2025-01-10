@@ -1,6 +1,9 @@
 package de.uksh.medic.cxx2medic.util
 
 import org.apache.http.entity.ContentType
+import org.hl7.fhir.instance.model.api.IBase
+import org.hl7.fhir.r4.fhirpath.FHIRPathEngine
+import org.hl7.fhir.r4.model.Base
 
 fun ContentType.isEqualTo(other: ContentType?): Boolean =
     when (other) {
@@ -21,3 +24,6 @@ fun String.replaceAll(replacements: Map<String, String>): String
     for ((k, v) in replacements) result = result.replace(k, v)
     return result
 }
+
+fun FHIRPathEngine.evaluateToBoolean(base: Base, fhirPathExpr: String): Boolean =
+    convertToBoolean(evaluate(base, fhirPathExpr))
