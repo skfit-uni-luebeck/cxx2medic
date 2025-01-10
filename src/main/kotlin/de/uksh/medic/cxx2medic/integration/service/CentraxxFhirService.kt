@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service
 import usr.paulolaup.fhir.client.interceptor.oauth.ClientCredentialsOAuthInterceptor
 import usr.paulolaup.fhir.client.interceptor.oauth.PasswordOAuthInterceptor
 import usr.paulolaup.fhir.client.interceptor.oauth.RefreshTokenOAuthInterceptor
+import kotlin.reflect.full.companionObject
 
 @Service
 class CentraXXFhirService(
@@ -50,6 +51,12 @@ class CentraXXFhirService(
             })
         } }
     }
+
+    final inline fun <reified T: IBaseResource> read(id: String): Result<T> =
+        read(id, T::class.java)
+
+    fun <T: IBaseResource> read(id: String, clazz: Class<T>): Result<T> =
+        kotlin.runCatching { client.read().resource(clazz).withId(id).execute() }
 
     fun read(id: String, type: String): Result<IBaseResource> =
         kotlin.runCatching { client.read().resource(type).withId(id).execute() }

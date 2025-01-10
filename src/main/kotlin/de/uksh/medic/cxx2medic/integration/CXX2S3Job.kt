@@ -3,6 +3,7 @@ package de.uksh.medic.cxx2medic.integration
 import arrow.core.Option
 import ca.uhn.fhir.context.FhirContext
 import ca.uhn.fhir.rest.server.exceptions.ResourceNotFoundException
+import de.uksh.medic.cxx2medic.config.CentraXXSettings
 import de.uksh.medic.cxx2medic.evaluation.Pattern
 import de.uksh.medic.cxx2medic.evaluation.pattern
 import de.uksh.medic.cxx2medic.exception.UnknownChangeTypeException
@@ -10,6 +11,7 @@ import de.uksh.medic.cxx2medic.integration.aggregator.strategy.SequenceAwareMess
 import de.uksh.medic.cxx2medic.integration.handler.S3StorageWriterHandler
 import de.uksh.medic.cxx2medic.integration.scheduling.UpToDateTriggerContext
 import de.uksh.medic.cxx2medic.integration.service.CentraXXFhirService
+import de.uksh.medic.cxx2medic.integration.service.FhirPathEvaluationServiceR4
 import de.uksh.medic.cxx2medic.integration.service.S3StorageService
 import okio.internal.commonAsUtf8ToByteArray
 import org.apache.logging.log4j.LogManager
@@ -61,7 +63,7 @@ class CXX2S3Job(
         enrichHeaders {
             header("runTimestamp", triggerContext.currentExecution())
             header("runId", UUID.nameUUIDFromBytes(triggerContext.currentExecution().toString().encodeToByteArray()))
-            header("consentPattern", consentPattern(triggerContext.currentExecution()))
+            //header("consentPattern", consentPattern(triggerContext.currentExecution()))
         }
         split<List<Map<String, String?>>> { it }
         filter<Map<String, String?>> { row -> null !in row.values }
@@ -77,7 +79,7 @@ class CXX2S3Job(
             val specimen = fhirService.readSpecimen(m["oid"]!!)
             val patient = fhirService.readPatient(m["patientcontainer"]!!)
             val consent = fhirService.readConsent(m["consent"]!!)
-            val changeType = m["change_type"]!!
+            val changeType = m["change_kind"]!!
             MessageBuilder.withPayload(Triple(specimen, consent, patient))
                 .copyHeaders(msg.headers)
                 .setHeader("request", when (changeType) {
@@ -92,14 +94,13 @@ class CXX2S3Job(
     }
 
     @Bean
-    fun filterByCriteria() = integrationFlow("cxx-fhir-data") {
+    fun filterByCriteria(
+        @Autowired evaluationService: FhirPathEvaluationServiceR4
+    ) = integrationFlow("cxx-fhir-data") {
         filter<Message<Triple<Option<Specimen>, Option<Consent>, Option<Patient>>>> { m ->
-            @Suppress("UNCHECKED_CAST")
-            val consentPattern = m.headers["consentPattern"]!! as Pattern<Consent>
-            val (specimen, consent, patient) = m.payload
-            specimen.fold({ false }, { s -> specimenPattern.evaluate(s) })
-                    && consent.fold({ false }, { c -> consentPattern.evaluate(c) })
-                    && patient.fold({ false }, {true})
+            val list = m.payload.toList().map { if (it.isSome()) it.getOrNull()!! else return@filter false }
+            logger.info("Evaluating Specimen [id=${list[0].idPart}]")
+            evaluationService.evaluate(list)
         }
         transform<Triple<Option<Specimen>, Option<Consent>, Option<Patient>>> { (specimen, consent, patient) ->
             // Due to the previous step the values cannot be null or None so they can be unpacked safely
@@ -109,7 +110,9 @@ class CXX2S3Job(
     }
 
     @Bean
-    fun enrichSpecimen() = integrationFlow("filtered-fhir-data") {
+    fun enrichSpecimen(
+        @Autowired cxxSettings: CentraXXSettings
+    ) = integrationFlow("filtered-fhir-data") {
         transform<Message<Triple<Specimen, Consent, Patient>>> { msg ->
             val (specimen, consent, patient) = msg.payload
 
@@ -130,6 +133,10 @@ class CXX2S3Job(
                     }
                     value = consent.id
                 })
+            })
+            specimen.extension.add(Extension().apply {
+                url = "https://www.medizininformatik-initiative.de/fhir/ext/modul-biobank/StructureDefinition/VerwaltendeOrganisation"
+                setValue(cxxSettings.managingOrg)
             })
 
             BundleEntryComponent().apply {
@@ -170,7 +177,7 @@ class CXX2S3Job(
         @Autowired bucketName: String,
     ) = integrationFlow("specimen-bundle-data") {
         transform<Bundle> {
-            val content = fhirContext.newNDJsonParser().encodeResourceToString(it)
+            val content = fhirContext.newJsonParser().apply { setPrettyPrint(false) }.encodeResourceToString(it)
             logger.info("Parsed bundle [id=${it.idPart}, contentLength=${content.encodeToByteArray().size}]")
             content
         }

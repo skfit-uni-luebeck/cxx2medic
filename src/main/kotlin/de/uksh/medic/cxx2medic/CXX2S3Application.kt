@@ -1,10 +1,14 @@
 package de.uksh.medic.cxx2medic
 
 import ca.uhn.fhir.context.FhirContext
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.KotlinModule
+import com.fasterxml.jackson.module.kotlin.readValue
 import de.uksh.medic.cxx2medic.config.DatabaseSettings
 import de.uksh.medic.cxx2medic.config.CentraXXSettings
 import de.uksh.medic.cxx2medic.config.FhirSettings
 import de.uksh.medic.cxx2medic.config.S3Settings
+import de.uksh.medic.cxx2medic.fhir.query.FhirQuery
 import io.minio.MinioClient
 import org.springframework.boot.SpringApplication
 import org.springframework.boot.autoconfigure.SpringBootApplication
@@ -15,6 +19,7 @@ import org.springframework.cache.concurrent.ConcurrentMapCache
 import org.springframework.cache.concurrent.ConcurrentMapCacheFactoryBean
 import org.springframework.cache.support.SimpleCacheManager
 import org.springframework.context.annotation.Bean
+import java.nio.file.Path
 
 @SpringBootApplication
 @EnableCaching
@@ -48,6 +53,13 @@ class CXX2S3Application
     @Bean("cxx:fhir-settings")
     fun centraxxFhirSettings(centraxxSettings: CentraXXSettings): FhirSettings =
         centraxxSettings.fhir
+
+    @Bean("fhirQuery")
+    fun fhirQuery(centraxxSettings: CentraXXSettings): FhirQuery
+    {
+        val mapper = ObjectMapper().registerModule(KotlinModule.Builder().build())
+        return mapper.readValue<FhirQuery>(Path.of(centraxxSettings.criteriaFile).toFile())
+    }
 
     @Bean
     fun minioClient(s3Settings: S3Settings): MinioClient =

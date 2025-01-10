@@ -1,0 +1,30 @@
+cxx:
+  database:
+    type: "[postgresql|sqlserver]"
+    host: "<hostname>"
+    port: <port>
+    database: "<db-name>"
+    username: "<username>"
+    password: "<password>"
+  fhir:
+    url: "[http|https]://<base-url>/fhir"
+    authorization:
+      oauth:
+        grantType: "<grant-type>"
+        accessTokenUrl: "[http|https]://<base-url>/path/to/request/token"
+        clientId: "<client-id>"
+        clientSecret: "<client-secret>"
+  criteriaFile: "/path/to/criteria/file"
+  managingOrg: "<system-uri>|<org-id-value>"
+
+schedule:
+  cron: "<sec-expr> <min-expr> <hour-expr> <day-expr> <mon-expr> <dow-expr>"
+#  catchupFrom: "YYYY-MM-dd:HH-mm-ss"
+
+s3:
+  url: "[http|https]://<base-url>"
+  bucketName: "cxx-specimen-data"
+  access:
+    key: "<key>"
+    secret: "<secret>"
+  bundleSizeLimit: 100

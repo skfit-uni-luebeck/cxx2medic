@@ -40,7 +40,7 @@ class IntervalJdbcQueryDataSource(
             size++
         }
         rs.close()
-        val statistics = results.groupBy { e -> e["change_type"] }.map { e -> e.key to e.value.size }
+        val statistics = results.groupBy { e -> e["change_kind"] }.map { e -> e.key to e.value.size }
         logger.info("Received $size records [${statistics.joinToString { "${it.first}: ${it.second}" }}]")
         results
     }

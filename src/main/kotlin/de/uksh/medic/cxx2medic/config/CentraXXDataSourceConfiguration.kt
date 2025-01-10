@@ -31,7 +31,7 @@ class CentraXXDataSourceConfiguration(
            FROM centraxx_sample
            WHERE change_date >= ? AND change_date < ? AND change_user != 'flyway'
         )
-        SELECT sample.OID, sample.PATIENTCONTAINER, sample.CONSENT, sample.change_type
+        SELECT sample.OID, sample.PATIENTCONTAINER, sample.CONSENT, sample.change_kind
         FROM sample
         WHERE rn = 1
     """.trimIndent()

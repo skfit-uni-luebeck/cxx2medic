@@ -1,0 +1,26 @@
+{
+  "description": "Add your description here",
+  "constants": {
+    "name11": "value1",
+    "someDate": "2000-01-01"
+  },
+  "variables": {
+    "name21": "expression21",
+    "birthDate": "Patient.birthDate"
+  },
+  "criteria": [
+    "Criteria on an even depth level form a conjunction",
+    "Criteria are FHIRPath expression where the first path node has to be a FHIR resource type:",
+    "<resource-type>.<element1>.<...>.<element2>.exists(<condition1> and <condition2>)...",
+    [
+      "Criteria on an even depth level from a disjunction",
+      "fhirPathExpr1",
+      "fhirPathExpr2",
+      [
+        "fhirPathExpr3",
+        "fhirPathExpr4"
+      ],
+      "fhirPathExpr5"
+    ]
+  ]
+}

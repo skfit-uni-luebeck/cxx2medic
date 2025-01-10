@@ -54,8 +54,11 @@ build/
 
 ### Own ###
 /testdata/
+
 /config/*
 !/config/README.md
+!/config/*.template
+
 /.idea/
 /.kotlin//.gradle/
 /.gradle/

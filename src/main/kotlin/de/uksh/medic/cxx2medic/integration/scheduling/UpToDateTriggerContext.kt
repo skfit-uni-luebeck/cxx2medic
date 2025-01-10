@@ -12,7 +12,7 @@ class UpToDateTriggerContext(
     @Volatile private var lastActualExecution: Instant? = null,
     @Volatile private var lastCompletion: Instant? = null,
     @Volatile private var currentExecution: Instant = Instant.now()
-): TriggerContext, InitiallyOpenIntervalProvider
+): TriggerContext, IntervalProvider
 {
     private val clock: Clock = Clock.systemDefaultZone()
 
