@@ -9,6 +9,9 @@ cxx:
   fhir:
     url: "[http|https]://<base-url>/fhir"
     authorization:
+      basic:
+        username: "<username>"
+        password: "<password>"
       oauth:
         grantType: "<grant-type>"
         accessTokenUrl: "[http|https]://<base-url>/path/to/request/token"

@@ -3,19 +3,30 @@ package de.uksh.medic.cxx2medic.config
 import arrow.core.None
 import arrow.core.Option
 import arrow.core.Some
+import com.fasterxml.jackson.annotation.JsonCreator
+import com.fasterxml.jackson.annotation.JsonProperty
 import de.uksh.medic.cxx2medic.authentication.*
+import org.apache.http.auth.UsernamePasswordCredentials
 import kotlin.contracts.contract
 
 class AuthorizationSettings(
+    basic: BasicSettings? = null,
     oauth: OAuthSettings? = null
 ) {
+    val basic: Option<UsernamePasswordCredentials> = if (basic == null) None
+    else Some(UsernamePasswordCredentials(basic.username, basic.password))
     val oauth: Option<OAuthSettings> = if (oauth == null) None else Some(oauth)
 
     init
     {
-        require(this.oauth.isSome())
+        require(this.oauth.isSome() || this.basic.isSome())
     }
 }
+
+class BasicSettings(
+    val username: String,
+    val password: String,
+)
 
 class OAuthSettings(
     grantType: String,

@@ -20,7 +20,7 @@ out/
 
 ### Eclipse ###
 .apt_generated
-.classpath
+.classpath.template
 .factorypath
 .project
 .settings
@@ -57,7 +57,7 @@ build/
 
 /config/*
 !/config/README.md
-!/config/*.template
+!/config/*.template.*
 
 /.idea/
 /.kotlin//.gradle/

@@ -5,6 +5,7 @@ import arrow.core.Option
 import arrow.core.Some
 import ca.uhn.fhir.context.FhirContext
 import ca.uhn.fhir.rest.client.api.IGenericClient
+import ca.uhn.fhir.rest.client.interceptor.BasicAuthInterceptor
 import de.uksh.medic.cxx2medic.authentication.OAuthClientCredentials
 import de.uksh.medic.cxx2medic.authentication.OAuthPasswordCredentials
 import de.uksh.medic.cxx2medic.authentication.OAuthRefreshTokenCredentials
@@ -13,6 +14,8 @@ import org.hl7.fhir.r4.model.Consent
 import org.hl7.fhir.r4.model.Patient
 import org.hl7.fhir.r4.model.Specimen
 import de.uksh.medic.cxx2medic.config.FhirSettings
+import de.uksh.medic.cxx2medic.evaluation.b
+import org.apache.http.auth.AuthenticationException
 import org.apache.http.auth.Credentials
 import org.apache.logging.log4j.LogManager
 import org.apache.logging.log4j.Logger
@@ -38,18 +41,26 @@ class CentraXXFhirService(
     init
     {
         // Activate OAuth authorization if settings reflect its presence
-        settings.authorization.onSome { it.oauth.onSome { oauth ->
-            client.registerInterceptor(when (val credentials = oauth.getCredentials()) {
-                is OAuthClientCredentials ->
-                    ClientCredentialsOAuthInterceptor(oauth.accessTokenUrl, credentials.clientCredentials)
-                is OAuthRefreshTokenCredentials ->
-                    RefreshTokenOAuthInterceptor(oauth.accessTokenUrl, credentials.clientCredentials)
-                is OAuthPasswordCredentials ->
-                    PasswordOAuthInterceptor(
-                        oauth.accessTokenUrl, credentials.clientCredentials, credentials.usernameAndPassword
-                    )
-            })
-        } }
+        settings.authorization.onSome { it ->
+            it.basic.fold (
+                { it.oauth.fold(
+                    { throw AuthenticationException("No Authentication data provided in authentication config") },
+                    { oauth ->
+                        client.registerInterceptor(when (val credentials = oauth.getCredentials()) {
+                            is OAuthClientCredentials ->
+                                ClientCredentialsOAuthInterceptor(oauth.accessTokenUrl, credentials.clientCredentials)
+                            is OAuthRefreshTokenCredentials ->
+                                RefreshTokenOAuthInterceptor(oauth.accessTokenUrl, credentials.clientCredentials)
+                            is OAuthPasswordCredentials ->
+                                PasswordOAuthInterceptor(
+                                    oauth.accessTokenUrl, credentials.clientCredentials, credentials.usernameAndPassword
+                                )
+                        })
+                    }
+                ) },
+                { basic -> client.registerInterceptor(BasicAuthInterceptor(basic.userName, basic.password)) }
+            )
+        }
     }
 
     final inline fun <reified T: IBaseResource> read(id: String): Result<T> =
