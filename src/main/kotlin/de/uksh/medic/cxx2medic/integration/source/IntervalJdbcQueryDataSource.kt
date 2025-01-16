@@ -35,12 +35,13 @@ class IntervalJdbcQueryDataSource(
         var size = 0L
         while (rs.next()) {
             results.add((1..metadata.columnCount).associate { i ->
-                metadata.getColumnName(i) to rs.getString(i)
+                metadata.getColumnName(i).lowercase() to rs.getString(i)
             })
             size++
         }
         rs.close()
-        val statistics = results.groupBy { e -> e["changeKind"] }.map { e -> e.key to e.value.size }
+        println(results)
+        val statistics = results.groupBy { e -> e["change_kind"] }.map { e -> e.key to e.value.size }
         logger.info("Received $size records [${statistics.joinToString { "${it.first}: ${it.second}" }}]")
         results
     }

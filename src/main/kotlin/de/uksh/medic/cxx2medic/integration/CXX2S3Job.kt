@@ -13,6 +13,7 @@ import de.uksh.medic.cxx2medic.integration.scheduling.UpToDateTriggerContext
 import de.uksh.medic.cxx2medic.integration.service.CentraXXFhirService
 import de.uksh.medic.cxx2medic.integration.service.FhirPathEvaluationServiceR4
 import de.uksh.medic.cxx2medic.integration.service.S3StorageService
+import de.uksh.medic.cxx2medic.util.Identifiers
 import okio.internal.commonAsUtf8ToByteArray
 import org.apache.logging.log4j.LogManager
 import org.apache.logging.log4j.Logger
@@ -36,6 +37,7 @@ import org.springframework.integration.dsl.IntegrationFlow
 import org.springframework.integration.dsl.StandardIntegrationFlow
 import org.springframework.integration.dsl.integrationFlow
 import org.springframework.integration.handler.LoggingHandler
+import org.springframework.integration.router.HeaderValueRouter
 import org.springframework.integration.transformer.HeaderEnricher
 import org.springframework.messaging.Message
 import org.springframework.messaging.MessageHandler
@@ -67,37 +69,45 @@ class CXX2S3Job(
         }
         split<List<Map<String, String?>>> { it }
         filter<Map<String, String?>> { row -> null !in row.values }
-        channel("cxx-db-data")
-    }
-
-    @Bean
-    fun readCentraxxFhirFacade(
-        @Autowired fhirService: CentraXXFhirService,
-    ) = integrationFlow("cxx-db-data") {
-        transform<Message<Map<String, String>>> { msg: Message<Map<String, String>> ->
+        transform<Message<Map<String, String?>>> { msg: Message<Map<String, String?>> ->
             val m = msg.payload
-            /*val changeType = m["change_kind"]!!*/
-            /*when (changeType) {
-                "I", "U" -> {
-
-                }
-                "D" -> {
-
-                }
-            }*/
-            val specimen = fhirService.readSpecimen(m["specimenId"]!!)
-            val patient = fhirService.readPatient(m["patientId"]!!)
-            val consent = fhirService.readConsent(m["consentId"]!!)
-            val changeType = m["changeKind"]!!
-            MessageBuilder.withPayload(Triple(specimen, consent, patient))
+            MessageBuilder.withPayload(Triple(m["specimen_id"]!!, m["patient_id"]!!, m["consent_id"]!!))
                 .copyHeaders(msg.headers)
-                .setHeader("request", when (changeType) {
+                .setHeader("request", when (val changeType = m["change_kind"]!!) {
                     "I" -> HTTPVerb.POST    // create
                     "U" -> HTTPVerb.PUT     // update
                     "D" -> HTTPVerb.DELETE  // delete
                     else -> throw UnknownChangeTypeException(changeType)
                 })
                 .build()
+        }
+        channel("cxx-db-data")
+    }
+
+    @Bean
+    fun routeByChangeKind() = integrationFlow("cxx-db-data") {
+        route<Message<Triple<String, String, String>>> { m ->
+            when (val verb = m.headers["request"] as HTTPVerb) {
+                HTTPVerb.POST, HTTPVerb.PUT -> "cxx-db-data-query-facade"
+                HTTPVerb.DELETE -> "cxx-db-data-skip-facade"
+                else -> {
+                    logger.warn("Unsupported request method (change kind) $verb => Discarding")
+                    "nullChannel"
+                }
+            }
+        }
+    }
+
+    @Bean
+    fun readCentraxxFhirFacade(
+        @Autowired fhirService: CentraXXFhirService,
+    ) = integrationFlow("cxx-db-data-query-facade") {
+        transform<Message<Triple<String, String, String>>> { msg: Message<Triple<String, String, String>> ->
+            val m = msg.payload
+            val specimen = fhirService.readSpecimen(m.first)
+            val patient = fhirService.readPatient(m.second)
+            val consent = fhirService.readConsent(m.third)
+            Triple(specimen, patient, consent)
         }
         channel("cxx-fhir-data")
     }
@@ -110,7 +120,10 @@ class CXX2S3Job(
             val list = m.payload.toList().map { if (it.isSome()) it.getOrNull()!! else return@filter false }
             logger.info("Evaluating Specimen [id=${list[0].idPart}]")
             kotlin.runCatching { evaluationService.evaluate(list) }.getOrElse { exc ->
-                logger.warn("Failed to evaluate criteria. Skipping", exc)
+                when (exc) {
+                    is NoSuchElementException -> logger.debug("${exc.message} => Excluding")
+                    else -> logger.warn("Failed to evaluate criteria => Excluding", exc)
+                }
                 false
             }
         }
@@ -123,32 +136,31 @@ class CXX2S3Job(
 
     @Bean
     fun enrichSpecimen(
-        @Autowired cxxSettings: CentraXXSettings
+        @Autowired cxxSettings: CentraXXSettings,
+        @Autowired identifierPattern: Pattern<Identifier>
     ) = integrationFlow("filtered-fhir-data") {
         filter<Message<Triple<Specimen, Consent, Patient>>> { msg ->
             val (_, _, patient) = msg.payload
-            patient.identifier.any { identifierPattern(cxxSettings.patientIdentifierTypeCode).evaluate(it) }
+            val result = patient.identifier.any { identifierPattern.evaluate(it) }
+            if (!result) logger.debug("Patient resource has no identifier with configured type code " +
+                    "[id=${patient.idPart}] => Excluding")
+            result
         }
         transform<Message<Triple<Specimen, Consent, Patient>>> { msg ->
             val (specimen, consent, patient) = msg.payload
+            val requestType = msg.headers["request"] as HTTPVerb
 
-            logger.info("Processing Specimen [id=${specimen.idPart}]")
+            logger.info("Processing Specimen resource [id=${specimen.idPart}, changeType=$requestType]")
 
             specimen.subject.apply {
-                identifier = patient.identifier.filter {
-                    identifierPattern(cxxSettings.patientIdentifierTypeCode).evaluate(it)
-                }[0]
+                identifier = patient.identifier.filter { identifierPattern.evaluate(it) }[0]
                 type = "Patient"
-                //identifier = patient.identifier.filter { identifier.type.coding.any { c ->
-                //        c.system.equals("https://fhir.centraxx.de/system/idContainerType") &&
-                //        c.code.equals(cxxSettings.patientIdentifierTypeCode)
-                //} }[0]
             }
 
             specimen.extension.add(Extension().apply {
-                url = "https://fhir.medicsh.de/StructureDefinition/ext-specimen-consent-identifier"
+                url = "https://medic.uksh.de/fhir/StructureDefinition/ext-specimen-consent-identifier"
                 setValue(Identifier().apply {
-                    system = "https://medicsh.de/identifier/biobank/consent"
+                    system = Identifiers.BIOBANK_CENTRAXX_CONSENT
                     value = consent.idPart
                 })
             })
@@ -158,12 +170,29 @@ class CXX2S3Job(
             })
 
             BundleEntryComponent().apply {
+                fullUrl = "${Identifiers.BIOBANK_CENTRAXX_SPECIMEN_OID}/${specimen.idPart}"
                 resource = specimen
                 request.method = msg.headers["request"] as HTTPVerb
                 request.url = when (request.method) {
                     HTTPVerb.PUT -> "{protocol}://{openehr_base_url}/rest/v1/ehr/{ehr_id}/composition/{uid_based_id}"
                     else -> "{protocol}://{openehr_base_url}/rest/v1/ehr/{ehr_id}/composition"
                 }
+            }
+        }
+        channel("specimen-fhir-data")
+    }
+
+    @Bean
+    fun processChangesWithoutContent() = integrationFlow("cxx-db-data-skip-facade") {
+        transform<Message<Triple<String, String, String>>> { msg ->
+            val specimenId = msg.payload.first
+            val requestType = msg.headers["request"] as HTTPVerb
+            logger.info("Processing specimen entry [id=$specimenId, changeType=$requestType]")
+            BundleEntryComponent().apply {
+                fullUrl = "${Identifiers.BIOBANK_CENTRAXX_SPECIMEN_OID}/${specimenId}"
+                request.method = msg.headers["request"] as HTTPVerb
+                request.url =
+                    "{protocol}://{openehr_base_url}/rest/openehr/v1/ehr/{ehr_id}/composition/{preceding_version_uid}"
             }
         }
         channel("specimen-fhir-data")
@@ -184,7 +213,7 @@ class CXX2S3Job(
             }.also { logger.info("Created bundle [id=${it.idPart}, size=${it.total}]") }
         }
         enrichHeaders {
-            headerExpression(S3StorageWriterHandler.OBJECT_NAME_HEADER, "payload.id + \".ndjson\"")
+            headerExpression(S3StorageWriterHandler.OBJECT_NAME_HEADER, "payload.id + \".json\"")
         }
         channel("specimen-bundle-data")
     }
@@ -201,7 +230,7 @@ class CXX2S3Job(
         }
         enrichHeaders {
             header(S3StorageWriterHandler.BUCKET_NAME_HEADER, bucketName)
-            header(MessageHeaders.CONTENT_TYPE, "application/fhir+ndjson")
+            header(MessageHeaders.CONTENT_TYPE, "application/fhir+json")
         }
         channel(PublishSubscribeChannel().apply {
             beanName = "specimen-bundle-raw"
@@ -209,49 +238,12 @@ class CXX2S3Job(
         })
     }
 
-    companion object
-    {
-        private val specimenPattern: Pattern<Specimen> =
-            pattern {
-                // Exclude aliquot groups as they do not represent real physical samples
-                noneOf({ extension }) {
-                    check { url == "https://fhir.centraxx.de/extension/sampleCategory" }
-                    pathOfType<Coding>({ value }) {
-                        check { system == "https://fhir.centraxx.de/system/sampleCategory" }
-                        check { code == "ALIQUOTGROUP" }
-                        check { display == "Aliquotgruppe" }
-                    }
-                }
-                path({ collection.quantity }) {
-                    check { value > BigDecimal.ZERO }
-                }
+    @Bean(name = ["identifierPattern"])
+    fun identifierPattern(@Autowired cxxSettings: CentraXXSettings): Pattern<Identifier> =
+        pattern {
+            anyOf({ type.coding }) {
+                check { system == "https://fhir.centraxx.de/system/idContainerType" }
+                check { code == cxxSettings.patientIdentifierTypeCode }
             }
-
-        private fun consentPattern(current: Instant): Pattern<Consent> =
-            pattern {
-                // Active consent resource
-                check { status == Consent.ConsentState.ACTIVE }
-                path({ provision }) {
-                    // Provision validity has to include current point in time
-                    path({ period }) {
-                        check { start < Date.from(current) }
-                        checkIfExists { end > Date.from(current) }
-                    }
-                    // Purpose reflecting consent type required for export
-                    anyOf({ purpose }) {
-                        check { system == "https://fhir.centraxx.de/system/consent/type" }
-                        check { code == "2IC" }
-                        check { display == "2. IC Biomaterial ICB-L" }
-                    }
-                }
-            }
-
-        private fun identifierPattern(patientIdentifierTypeCode: String): Pattern<Identifier> =
-            pattern {
-                anyOf({ type.coding }) {
-                    check { system == "https://fhir.centraxx.de/system/idContainerType" }
-                    check { code == patientIdentifierTypeCode }
-                }
-            }
-    }
+        }
 }

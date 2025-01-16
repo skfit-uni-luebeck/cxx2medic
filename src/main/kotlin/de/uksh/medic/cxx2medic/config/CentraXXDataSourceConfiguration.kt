@@ -36,10 +36,10 @@ class CentraXXDataSourceConfiguration(
            FROM centraxx_sample
            WHERE change_date >= ? AND change_date < ? AND change_user != 'flyway'
         )
-        SELECT sample.OID AS specimenId, sample.PATIENTCONTAINER AS patientId, sample.CONSENT AS consentId, sample.change_kind AS changeKind
+        SELECT sample.OID AS specimen_id, sample.PATIENTCONTAINER AS patient_id, sample.CONSENT AS consent_id, sample.change_kind AS change_kind
         FROM sample
         WHERE rn = 1
-        ORDER BY patientId, consentId
+        ORDER BY patient_id, consent_id
     """.trimIndent()
 
     init {

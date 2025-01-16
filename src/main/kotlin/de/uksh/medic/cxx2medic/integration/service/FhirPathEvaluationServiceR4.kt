@@ -5,6 +5,7 @@ import de.uksh.medic.cxx2medic.exception.UnsupportedValueException
 import de.uksh.medic.cxx2medic.fhir.query.FhirQuery
 import de.uksh.medic.cxx2medic.util.evaluateToBoolean
 import de.uksh.medic.cxx2medic.util.getResourceType
+import org.hl7.fhir.exceptions.FHIRException
 import org.hl7.fhir.r4.fhirpath.FHIRPathEngine
 import org.hl7.fhir.r4.hapi.ctx.HapiWorkerContext
 import org.hl7.fhir.r4.model.Base
@@ -48,9 +49,12 @@ class FhirPathEvaluationServiceR4(
     {
         return query.variables.mapValues { e ->
             val resourceType = getResourceType(e.value)
-            val results = engine.evaluate(map[resourceType]!!, e.value)
+            val results = kotlin.runCatching { engine.evaluate(map[resourceType]!!, e.value) }.getOrElse { exc ->
+                throw FHIRException("Failed to resolve variable", exc)
+            }
             if (results.isNotEmpty()) results[0]
-            else throw Exception("Cannot resolve variable ${e.key}. No such elements in resource")
+            else throw NoSuchElementException("Cannot resolve variable ${e.key}. " +
+                    "No such elements in resource [expr=${e.value}]")
         }.mapValues { e ->
             when (val value = e.value) {
                 is DateType -> fhirPathDateFormatter.format(value.value)
