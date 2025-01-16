@@ -1,6 +1,7 @@
 package de.uksh.medic.cxx2medic.util
 
 import kotlinx.cli.ParsingException
+import org.hl7.fhir.r4.model.Coding
 import org.hl7.fhir.r4.model.Identifier
 import java.net.URI
 

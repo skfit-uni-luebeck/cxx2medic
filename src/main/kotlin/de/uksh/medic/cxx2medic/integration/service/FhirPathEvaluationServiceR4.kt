@@ -48,7 +48,9 @@ class FhirPathEvaluationServiceR4(
     {
         return query.variables.mapValues { e ->
             val resourceType = getResourceType(e.value)
-            engine.evaluate(map[resourceType]!!, e.value)[0]
+            val results = engine.evaluate(map[resourceType]!!, e.value)
+            if (results.isNotEmpty()) results[0]
+            else throw Exception("Cannot resolve variable ${e.key}. No such elements in resource")
         }.mapValues { e ->
             when (val value = e.value) {
                 is DateType -> fhirPathDateFormatter.format(value.value)

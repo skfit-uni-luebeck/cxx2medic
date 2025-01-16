@@ -76,16 +76,25 @@ class CXX2S3Job(
     ) = integrationFlow("cxx-db-data") {
         transform<Message<Map<String, String>>> { msg: Message<Map<String, String>> ->
             val m = msg.payload
-            val specimen = fhirService.readSpecimen(m["oid"]!!)
-            val patient = fhirService.readPatient(m["patientcontainer"]!!)
-            val consent = fhirService.readConsent(m["consent"]!!)
-            val changeType = m["change_kind"]!!
+            /*val changeType = m["change_kind"]!!*/
+            /*when (changeType) {
+                "I", "U" -> {
+
+                }
+                "D" -> {
+
+                }
+            }*/
+            val specimen = fhirService.readSpecimen(m["specimenId"]!!)
+            val patient = fhirService.readPatient(m["patientId"]!!)
+            val consent = fhirService.readConsent(m["consentId"]!!)
+            val changeType = m["changeKind"]!!
             MessageBuilder.withPayload(Triple(specimen, consent, patient))
                 .copyHeaders(msg.headers)
                 .setHeader("request", when (changeType) {
-                    "created" -> HTTPVerb.POST
-                    "updated" -> HTTPVerb.PUT
-                    "deleted" -> HTTPVerb.DELETE
+                    "I" -> HTTPVerb.POST    // create
+                    "U" -> HTTPVerb.PUT     // update
+                    "D" -> HTTPVerb.DELETE  // delete
                     else -> throw UnknownChangeTypeException(changeType)
                 })
                 .build()
@@ -100,7 +109,10 @@ class CXX2S3Job(
         filter<Message<Triple<Option<Specimen>, Option<Consent>, Option<Patient>>>> { m ->
             val list = m.payload.toList().map { if (it.isSome()) it.getOrNull()!! else return@filter false }
             logger.info("Evaluating Specimen [id=${list[0].idPart}]")
-            evaluationService.evaluate(list)
+            kotlin.runCatching { evaluationService.evaluate(list) }.getOrElse { exc ->
+                logger.warn("Failed to evaluate criteria. Skipping", exc)
+                false
+            }
         }
         transform<Triple<Option<Specimen>, Option<Consent>, Option<Patient>>> { (specimen, consent, patient) ->
             // Due to the previous step the values cannot be null or None so they can be unpacked safely
@@ -113,25 +125,31 @@ class CXX2S3Job(
     fun enrichSpecimen(
         @Autowired cxxSettings: CentraXXSettings
     ) = integrationFlow("filtered-fhir-data") {
+        filter<Message<Triple<Specimen, Consent, Patient>>> { msg ->
+            val (_, _, patient) = msg.payload
+            patient.identifier.any { identifierPattern(cxxSettings.patientIdentifierTypeCode).evaluate(it) }
+        }
         transform<Message<Triple<Specimen, Consent, Patient>>> { msg ->
             val (specimen, consent, patient) = msg.payload
 
             logger.info("Processing Specimen [id=${specimen.idPart}]")
 
             specimen.subject.apply {
+                identifier = patient.identifier.filter {
+                    identifierPattern(cxxSettings.patientIdentifierTypeCode).evaluate(it)
+                }[0]
                 type = "Patient"
-                identifier = patient.identifier.filter { identifierPattern.evaluate(it) }[0]
+                //identifier = patient.identifier.filter { identifier.type.coding.any { c ->
+                //        c.system.equals("https://fhir.centraxx.de/system/idContainerType") &&
+                //        c.code.equals(cxxSettings.patientIdentifierTypeCode)
+                //} }[0]
             }
 
             specimen.extension.add(Extension().apply {
                 url = "https://fhir.medicsh.de/StructureDefinition/ext-specimen-consent-identifier"
                 setValue(Identifier().apply {
-                    type.addCoding().apply {
-                        system = "https://fhir.centraxx.de/system/idContainerType"
-                        code = "KIS-ID"
-                        display = "ORBIS-ID"
-                    }
-                    value = consent.id
+                    system = "https://medicsh.de/identifier/biobank/consent"
+                    value = consent.idPart
                 })
             })
             specimen.extension.add(Extension().apply {
@@ -228,12 +246,11 @@ class CXX2S3Job(
                 }
             }
 
-        private val identifierPattern: Pattern<Identifier> =
+        private fun identifierPattern(patientIdentifierTypeCode: String): Pattern<Identifier> =
             pattern {
                 anyOf({ type.coding }) {
                     check { system == "https://fhir.centraxx.de/system/idContainerType" }
-                    check { code == "KIS-ID" }
-                    check { display == "ORBIS-ID" }
+                    check { code == patientIdentifierTypeCode }
                 }
             }
     }

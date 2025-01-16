@@ -19,6 +19,7 @@ cxx:
         clientSecret: "<client-secret>"
   criteriaFile: "/path/to/criteria/file"
   managingOrg: "<system-uri>|<org-id-value>"
+  patientIdentifierTypeCode: "<type-code>"
 
 schedule:
   cron: "<sec-expr> <min-expr> <hour-expr> <day-expr> <mon-expr> <dow-expr>"

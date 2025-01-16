@@ -4,6 +4,7 @@ import arrow.core.None
 import arrow.core.Option
 import arrow.core.Some
 import de.uksh.medic.cxx2medic.util.parseIdentifierToken
+import org.hl7.fhir.r4.model.Coding
 import org.hl7.fhir.r4.model.Identifier
 import org.springframework.boot.context.properties.ConfigurationProperties
 
@@ -12,7 +13,8 @@ class CentraXXSettings(
     val database: DatabaseSettings,
     val fhir: FhirSettings,
     val criteriaFile: String,
-    managingOrg: String
+    managingOrg: String,
+    val patientIdentifierTypeCode: String
 ) {
     val managingOrg: Identifier = parseIdentifierToken(managingOrg).getOrThrow()
 }

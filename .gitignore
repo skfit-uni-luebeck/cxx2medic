@@ -65,3 +65,5 @@ build/
 /minio/
 /.commit
 .commit
+/gradle.properties
+gradle.properties

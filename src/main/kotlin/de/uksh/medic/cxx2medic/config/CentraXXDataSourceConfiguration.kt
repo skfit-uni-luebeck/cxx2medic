@@ -20,8 +20,13 @@ class CentraXXDataSourceConfiguration(
 )
 {
     private val driverClassName = getDriverClassName(settings.type)
-    private val connectionUrl: String =
-        "jdbc:${getProtocolPart(settings.type)}://${settings.host}:${settings.port}/${settings.database}"
+    private val connectionUrl: String = when (val type = settings.type)
+        {
+            DatabaseType.POSTGRESQL ->
+                "jdbc:${getProtocolPart(settings.type)}://${settings.host}:${settings.port}/${settings.database}"
+            DatabaseType.MICROSOFT_SQL_SERVER ->
+                "jdbc:${getProtocolPart(settings.type)}://${settings.host}:${settings.port};databaseName=${settings.database}"
+        }
     private val username: String = settings.username
     private val password: String = settings.password
     private val queryTemplateStr: String = """
@@ -31,10 +36,15 @@ class CentraXXDataSourceConfiguration(
            FROM centraxx_sample
            WHERE change_date >= ? AND change_date < ? AND change_user != 'flyway'
         )
-        SELECT sample.OID, sample.PATIENTCONTAINER, sample.CONSENT, sample.change_kind
+        SELECT sample.OID AS specimenId, sample.PATIENTCONTAINER AS patientId, sample.CONSENT AS consentId, sample.change_kind AS changeKind
         FROM sample
         WHERE rn = 1
+        ORDER BY patientId, consentId
     """.trimIndent()
+
+    init {
+        println("conn str: ${connectionUrl}")
+    }
 
     @Bean("cxx:db-source")
     fun dataSource(): DataSource =
