@@ -2,7 +2,6 @@ package de.uksh.medic.cxx2medic.integration
 
 import arrow.core.Option
 import ca.uhn.fhir.context.FhirContext
-import ca.uhn.fhir.rest.server.exceptions.ResourceNotFoundException
 import de.uksh.medic.cxx2medic.config.CentraXXSettings
 import de.uksh.medic.cxx2medic.evaluation.Pattern
 import de.uksh.medic.cxx2medic.evaluation.pattern
@@ -14,7 +13,6 @@ import de.uksh.medic.cxx2medic.integration.service.CentraXXFhirService
 import de.uksh.medic.cxx2medic.integration.service.FhirPathEvaluationServiceR4
 import de.uksh.medic.cxx2medic.integration.service.S3StorageService
 import de.uksh.medic.cxx2medic.util.Identifiers
-import okio.internal.commonAsUtf8ToByteArray
 import org.apache.logging.log4j.LogManager
 import org.apache.logging.log4j.Logger
 import org.hl7.fhir.r4.model.*
@@ -24,23 +22,11 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.integration.aggregator.MessageCountReleaseStrategy
-import org.springframework.integration.aggregator.ReleaseStrategy
-import org.springframework.integration.aggregator.SequenceSizeReleaseStrategy
-import org.springframework.integration.aggregator.SimpleSequenceSizeReleaseStrategy
-import org.springframework.integration.annotation.MessageEndpoint
-import org.springframework.integration.annotation.ServiceActivator
 import org.springframework.integration.channel.PublishSubscribeChannel
 import org.springframework.integration.config.EnableIntegration
 import org.springframework.integration.core.MessageSource
-import org.springframework.integration.dsl.IntegrationFlow
-import org.springframework.integration.dsl.StandardIntegrationFlow
 import org.springframework.integration.dsl.integrationFlow
-import org.springframework.integration.handler.LoggingHandler
-import org.springframework.integration.router.HeaderValueRouter
-import org.springframework.integration.transformer.HeaderEnricher
 import org.springframework.messaging.Message
-import org.springframework.messaging.MessageHandler
 import org.springframework.messaging.MessageHeaders
 import org.springframework.messaging.support.MessageBuilder
 import org.springframework.scheduling.support.CronTrigger
@@ -148,7 +134,11 @@ class CXX2S3Job(
         }
         transform<Message<Triple<Specimen, Consent, Patient>>> { msg ->
             val (specimen, consent, patient) = msg.payload
-            val requestType = msg.headers["request"] as HTTPVerb
+            // FIXME: Add proper request type adjustment based on current request type similar to criteria definition
+            //        and evaluation
+            // If there is no material remains emit a DELETE action
+            val requestType = if (specimenIsEmpty.evaluate(specimen)) HTTPVerb.DELETE
+                              else msg.headers["request"] as HTTPVerb
 
             logger.info("Processing Specimen resource [id=${specimen.idPart}, changeType=$requestType]")
 
@@ -169,7 +159,7 @@ class CXX2S3Job(
                 setValue(cxxSettings.managingOrg)
             })
 
-            BundleEntryComponent().apply {
+            val entry = BundleEntryComponent().apply {
                 fullUrl = "${Identifiers.BIOBANK_CENTRAXX_SPECIMEN_OID}/${specimen.idPart}"
                 resource = specimen
                 request.method = msg.headers["request"] as HTTPVerb
@@ -178,6 +168,10 @@ class CXX2S3Job(
                     else -> "{protocol}://{openehr_base_url}/rest/v1/ehr/{ehr_id}/composition"
                 }
             }
+
+            MessageBuilder.withPayload(entry)
+                .copyHeaders(msg.headers)
+                .setHeader("request", requestType).build()
         }
         channel("specimen-fhir-data")
     }
@@ -244,6 +238,13 @@ class CXX2S3Job(
             anyOf({ type.coding }) {
                 check { system == "https://fhir.centraxx.de/system/idContainerType" }
                 check { code == cxxSettings.patientIdentifierTypeCode }
+            }
+        }
+
+    private val specimenIsEmpty: Pattern<Specimen> =
+        pattern {
+            anyOf({ container }) {
+                check { specimenQuantity.value > BigDecimal.ZERO }
             }
         }
 }

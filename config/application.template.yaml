@@ -33,3 +33,13 @@ s3:
     secret: "<secret>"
 #  region: "(optional) <region-str>"
   bundleSizeLimit: <positive-number>
+
+logging:
+  config: "config/logback-spring.xml"
+#  level:
+#    root: INFO
+#  file:
+#    name: "logs/log.txt"
+#    max-size: 10MB
+#    max-history: 10
+#  path: "logs"

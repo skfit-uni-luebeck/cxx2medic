@@ -68,3 +68,7 @@ build/
 /gradle.properties
 gradle.properties
 /src/**/Test*
+
+### Logging ###
+/logs/*
+!/logs/README.md

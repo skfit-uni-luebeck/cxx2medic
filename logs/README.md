@@ -1,0 +1,1 @@
+This directory is the default location to write log file to.
