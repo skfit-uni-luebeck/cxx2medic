@@ -4,17 +4,21 @@ import ca.uhn.fhir.context.FhirContext
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.fasterxml.jackson.module.kotlin.readValue
+import com.github.benmanes.caffeine.cache.CaffeineSpec
 import de.uksh.medic.cxx2medic.config.DatabaseSettings
 import de.uksh.medic.cxx2medic.config.CentraXXSettings
 import de.uksh.medic.cxx2medic.config.FhirSettings
 import de.uksh.medic.cxx2medic.config.S3Settings
 import de.uksh.medic.cxx2medic.fhir.query.FhirQuery
 import io.minio.MinioClient
+import org.simpleframework.xml.util.ConcurrentCache
 import org.springframework.boot.SpringApplication
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan
 import org.springframework.boot.context.properties.EnableConfigurationProperties
+import org.springframework.cache.CacheManager
 import org.springframework.cache.annotation.EnableCaching
+import org.springframework.cache.caffeine.CaffeineCacheManager
 import org.springframework.cache.concurrent.ConcurrentMapCache
 import org.springframework.cache.concurrent.ConcurrentMapCacheFactoryBean
 import org.springframework.cache.support.SimpleCacheManager
@@ -32,19 +36,19 @@ class CXX2S3Application
         FhirContext.forR4()
 
     @Bean
-    fun fhirPatientCache() =
-        ConcurrentMapCacheFactoryBean().apply { setName("fhir-patient") }
+    fun fhirPatientCache(): ConcurrentMapCacheFactoryBean =
+        ConcurrentMapCacheFactoryBean().apply { setName("fhirPatientCache") }
 
     @Bean
-    fun fhirConsentCache() =
-        ConcurrentMapCacheFactoryBean().apply { setName("fhir-consent") }
+    fun fhirConsentCache(): ConcurrentMapCacheFactoryBean =
+        ConcurrentMapCacheFactoryBean().apply { setName("fhirConsentCache") }
 
-    // Caches for Consent resources are currently deactivated since they are checked for their policies and changes to
-    // them are crucial to detect. Consequently, those resources should be kept up to date. Alternatively one could
-    // reset the cache before each run to at least cache resources within a single run
     @Bean
-    fun cacheManager(fhirPatientCache: ConcurrentMapCache, fhirConsentCache: ConcurrentMapCache) =
-        SimpleCacheManager().apply { setCaches(setOf(fhirPatientCache, fhirConsentCache)) }
+    fun cacheManager(): CacheManager =
+        CaffeineCacheManager().apply {
+            setAsyncCacheMode(true)
+            cacheNames = listOf("fhirPatientCache", "fhirConsentCache")
+        }
 
     @Bean("cxx:db-settings")
     fun centraxxDatabaseSettings(centraxxSettings: CentraXXSettings): DatabaseSettings =
@@ -63,10 +67,11 @@ class CXX2S3Application
 
     @Bean
     fun minioClient(s3Settings: S3Settings): MinioClient =
-        MinioClient.builder()
-            .endpoint(s3Settings.url)
-            .credentials(s3Settings.access.key, s3Settings.access.secret)
-            .build()
+        MinioClient.builder().apply {
+            endpoint(s3Settings.url)
+            credentials(s3Settings.access.key, s3Settings.access.secret)
+            s3Settings.region.onSome { region(it) }
+        }.build()
 
     @Bean
     fun bundleSizeLimit(s3Settings: S3Settings): Int =

@@ -35,7 +35,6 @@ class CentraXXFhirService(
 )
 {
     private val url: String = settings.url
-    private val auth: Option<Credentials> = settings.authentication.flatMap { it.getCredentials() }
     private val client: IGenericClient = fhirContext.newRestfulGenericClient(url)
 
     init
@@ -72,7 +71,7 @@ class CentraXXFhirService(
     fun read(id: String, type: String): Result<IBaseResource> =
         kotlin.runCatching { client.read().resource(type).withId(id).execute() }
 
-    @Cacheable("fhir-patient")
+    @Cacheable("fhirPatientCache", cacheManager = "cacheManager")
     fun readPatient(id: String): Option<Patient> =
         (read(id, "Patient") as Result<Patient>).fold(
             { p -> Some(p) },
@@ -82,7 +81,7 @@ class CentraXXFhirService(
     // Caches for Consent resources are currently deactivated since they are checked for their policies and changes to
     // them are crucial to detect. Consequently, those resources should be kept up to date. Alternatively one could
     // reset the cache before each run to at least cache resources within a single run
-    //@Cacheable("fhir-consent")
+    @Cacheable("fhirConsentCache", cacheManager = "cacheManager")
     fun readConsent(id: String): Option<Consent> =
         (read(id, "Consent") as Result<Consent>).fold(
             { c -> Some(c) },

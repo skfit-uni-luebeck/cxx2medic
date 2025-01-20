@@ -107,7 +107,7 @@ class CXX2S3Job(
             val specimen = fhirService.readSpecimen(m.first)
             val patient = fhirService.readPatient(m.second)
             val consent = fhirService.readConsent(m.third)
-            Triple(specimen, patient, consent)
+            Triple(specimen, consent, patient)
         }
         channel("cxx-fhir-data")
     }

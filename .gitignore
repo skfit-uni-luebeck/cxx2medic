@@ -67,3 +67,4 @@ build/
 .commit
 /gradle.properties
 gradle.properties
+/src/**/Test*

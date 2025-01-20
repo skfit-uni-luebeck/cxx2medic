@@ -19,13 +19,13 @@ class CentraXXDataSourceConfiguration(
     @Autowired @Qualifier("cxx:db-settings") settings: DatabaseSettings
 )
 {
-    private val driverClassName = getDriverClassName(settings.type)
+    private val driverClassName = settings.type.driverClassName
     private val connectionUrl: String = when (val type = settings.type)
         {
             DatabaseType.POSTGRESQL ->
-                "jdbc:${getProtocolPart(settings.type)}://${settings.host}:${settings.port}/${settings.database}"
-            DatabaseType.MICROSOFT_SQL_SERVER ->
-                "jdbc:${getProtocolPart(settings.type)}://${settings.host}:${settings.port};databaseName=${settings.database}"
+                "jdbc:${settings.type.protocol}://${settings.host}:${settings.port}/${settings.name}"
+            DatabaseType.SQLSERVER ->
+                "jdbc:${settings.type.protocol}://${settings.host}:${settings.port};databaseName=${settings.name}"
         }
     private val username: String = settings.username
     private val password: String = settings.password
@@ -41,10 +41,6 @@ class CentraXXDataSourceConfiguration(
         WHERE rn = 1
         ORDER BY patient_id, consent_id
     """.trimIndent()
-
-    init {
-        println("conn str: ${connectionUrl}")
-    }
 
     @Bean("cxx:db-source")
     fun dataSource(): DataSource =

@@ -3,6 +3,7 @@ package de.uksh.medic.cxx2medic.config
 import arrow.core.None
 import arrow.core.Some
 import de.uksh.medic.cxx2medic.integration.scheduling.UpToDateTriggerContext
+import de.uksh.medic.cxx2medic.integration.service.CacheManagementService
 import org.apache.logging.log4j.LogManager
 import org.apache.logging.log4j.Logger
 import org.springframework.context.annotation.Bean
@@ -18,7 +19,8 @@ import java.time.format.DateTimeFormatter
 @Configuration
 @EnableIntegration
 class GlobalCronTriggerConfiguration(
-    settings: ScheduleSettings
+    settings: ScheduleSettings,
+    private val cacheManagerService: CacheManagementService
 )
 {
     private val triggerContext: UpToDateTriggerContext = when (val ts = settings.catchupFrom) {
@@ -37,6 +39,10 @@ class GlobalCronTriggerConfiguration(
     {
         override fun nextExecution(triggerContext: TriggerContext): Instant
         {
+            // Clear caches
+            if (triggerContext.lastActualExecution() != null) {
+                cacheManagerService.clearAllCaches()
+            }
             // Call the superclass to get the next execution time
             val nextExecution = super.nextExecution(triggerContext)
             // Capture the current trigger context

@@ -39,8 +39,11 @@ class MinioStorageService(
                 client.putObject(PutObjectArgs.builder().bucket(bucketName).`object`(objectName).stream(
                     stream, stream.available().toLong(), -1
                 ).contentType(contentType.toString()).build())
+            }.onSuccess { o ->
+                logger.info("Uploaded object '${o.`object`()}' to bucket '${o.bucket()}' " +
+                    "[eTag=${o.etag()}, versionId=${o.versionId()}]")
+                logger.debug("Response headers: [${o.headers().joinToString { it.toString() }}]")
             }.onFailure { e -> throw ObjectStoringException(objectName, bucketName, e) }
-            logger.info("Uploaded object '$objectName' to bucket '$bucketName'")
         }
 
     companion object
