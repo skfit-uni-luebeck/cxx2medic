@@ -57,7 +57,10 @@ class CXX2S3Job(
         filter<Map<String, String?>> { row -> null !in row.values }
         transform<Message<Map<String, String?>>> { msg: Message<Map<String, String?>> ->
             val m = msg.payload
-            MessageBuilder.withPayload(Triple(m["specimen_id"]!!, m["patient_id"]!!, m["consent_id"]!!))
+            val specimenId = m["specimen_id"]!!
+            val patientId = m["patient_id"]!!
+            val consentId = m["consent_id"]!!
+            MessageBuilder.withPayload(Triple(specimenId, patientId, consentId))
                 .copyHeaders(msg.headers)
                 .setHeader("request", when (val changeType = m["change_kind"]!!) {
                     "I" -> HTTPVerb.POST    // create
@@ -65,6 +68,9 @@ class CXX2S3Job(
                     "D" -> HTTPVerb.DELETE  // delete
                     else -> throw UnknownChangeTypeException(changeType)
                 })
+                .setHeader("specimenId", specimenId)
+                .setHeader("patientId", patientId)
+                .setHeader("consentId", consentId)
                 .build()
         }
         channel("cxx-db-data")
@@ -75,7 +81,7 @@ class CXX2S3Job(
         route<Message<Triple<String, String, String>>> { m ->
             when (val verb = m.headers["request"] as HTTPVerb) {
                 HTTPVerb.POST, HTTPVerb.PUT -> "cxx-db-data-query-facade"
-                HTTPVerb.DELETE -> "cxx-db-data-skip-facade"
+                HTTPVerb.DELETE -> "cxx-db-data-ignore-content"
                 else -> {
                     logger.warn("Unsupported request method (change kind) $verb => Discarding")
                     "nullChannel"
@@ -98,7 +104,7 @@ class CXX2S3Job(
         channel("cxx-fhir-data")
     }
 
-    @Bean
+    /*@Bean
     fun filterByCriteria(
         @Autowired evaluationService: FhirPathEvaluationServiceR4
     ) = integrationFlow("cxx-fhir-data") {
@@ -113,11 +119,31 @@ class CXX2S3Job(
                 false
             }
         }
-        transform<Triple<Option<Specimen>, Option<Consent>, Option<Patient>>> { (specimen, consent, patient) ->
-            // Due to the previous step the values cannot be null or None so they can be unpacked safely
-            Triple(specimen.getOrNull()!!, consent.getOrNull()!!, patient.getOrNull()!!)
-        }
         channel("filtered-fhir-data")
+    }*/
+
+    @Bean
+    fun routeBasedOnCriteria(
+        @Autowired evaluationService: FhirPathEvaluationServiceR4
+    ) = integrationFlow("cxx-fhir-data") {
+        route<Message<Triple<Option<Specimen>, Option<Consent>, Option<Patient>>>> { m ->
+            logger.info("Evaluating Specimen [id=${m.headers["specimenId"]!!}]")
+            val keepChannel = "filtered-fhir-data"
+            val deleteChannel = "cxx-db-data-ignore-content"
+            kotlin.runCatching {
+                val list = m.payload.toList().map {
+                    if (it.isSome()) it.getOrNull()!! else return@runCatching deleteChannel
+                }
+                return@runCatching if (evaluationService.evaluate(list)) keepChannel
+                else deleteChannel
+            }.getOrElse { exc ->
+                when (exc) {
+                    is NoSuchElementException -> logger.debug("${exc.message} => Excluding")
+                    else -> logger.warn("Failed to evaluate criteria => Excluding", exc)
+                }
+                deleteChannel
+            }
+        }
     }
 
     @Bean
@@ -125,6 +151,10 @@ class CXX2S3Job(
         @Autowired cxxSettings: CentraXXSettings,
         @Autowired identifierPattern: Pattern<Identifier>
     ) = integrationFlow("filtered-fhir-data") {
+        transform<Triple<Option<Specimen>, Option<Consent>, Option<Patient>>> { (specimen, consent, patient) ->
+            // Due to the previous step the values cannot be null or None so they can be unpacked safely
+            Triple(specimen.getOrNull()!!, consent.getOrNull()!!, patient.getOrNull()!!)
+        }
         filter<Message<Triple<Specimen, Consent, Patient>>> { msg ->
             val (_, _, patient) = msg.payload
             val result = patient.identifier.any { identifierPattern.evaluate(it) }
@@ -177,14 +207,14 @@ class CXX2S3Job(
     }
 
     @Bean
-    fun processChangesWithoutContent() = integrationFlow("cxx-db-data-skip-facade") {
-        transform<Message<Triple<String, String, String>>> { msg ->
-            val specimenId = msg.payload.first
-            val requestType = msg.headers["request"] as HTTPVerb
+    fun processChangesWithoutContent() = integrationFlow("cxx-db-data-ignore-content") {
+        transform<Message<*>> { msg ->
+            val specimenId = msg.headers["specimenId"]!!
+            val requestType = msg.headers["request"]!! as HTTPVerb
             logger.info("Processing specimen entry [id=$specimenId, changeType=$requestType]")
             BundleEntryComponent().apply {
                 fullUrl = "${Identifiers.BIOBANK_CENTRAXX_SPECIMEN_OID}/${specimenId}"
-                request.method = msg.headers["request"] as HTTPVerb
+                request.method = requestType
                 request.url =
                     "{protocol}://{openehr_base_url}/rest/openehr/v1/ehr/{ehr_id}/composition/{preceding_version_uid}"
             }
