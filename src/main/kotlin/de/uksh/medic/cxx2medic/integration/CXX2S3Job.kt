@@ -127,10 +127,9 @@ class CXX2S3Job(
         @Autowired evaluationService: FhirPathEvaluationServiceR4
     ) = integrationFlow("cxx-fhir-data") {
         route<Message<Triple<Option<Specimen>, Option<Consent>, Option<Patient>>>> { m ->
-            logger.info("Evaluating Specimen [id=${m.headers["specimenId"]!!}]")
             val keepChannel = "filtered-fhir-data"
-            val deleteChannel = "cxx-db-data-ignore-content"
-            kotlin.runCatching {
+            val deleteChannel = "mark-for-deletion"
+            val channel = kotlin.runCatching {
                 val list = m.payload.toList().map {
                     if (it.isSome()) it.getOrNull()!! else return@runCatching deleteChannel
                 }
@@ -138,11 +137,14 @@ class CXX2S3Job(
                 else deleteChannel
             }.getOrElse { exc ->
                 when (exc) {
-                    is NoSuchElementException -> logger.debug("${exc.message} => Excluding")
+                    is NoSuchElementException -> logger.warn("${exc.message} => Excluding")
                     else -> logger.warn("Failed to evaluate criteria => Excluding", exc)
                 }
                 deleteChannel
             }
+            logger.info("Evaluated Specimen [id=${m.headers["specimenId"]!!}]: ${if (channel == keepChannel) "keep" 
+            else "delete"}")
+            channel
         }
     }
 
@@ -170,7 +172,7 @@ class CXX2S3Job(
             val requestType = if (specimenIsEmpty.evaluate(specimen)) HTTPVerb.DELETE
                               else msg.headers["request"] as HTTPVerb
 
-            logger.info("Processing Specimen resource [id=${specimen.idPart}, changeType=$requestType]")
+            logger.info("Processing Specimen resource [id=${specimen.idPart}, requestType=$requestType]")
 
             specimen.subject.apply {
                 identifier = patient.identifier.filter { identifierPattern.evaluate(it) }[0]
@@ -207,11 +209,19 @@ class CXX2S3Job(
     }
 
     @Bean
+    fun markForDeletion() = integrationFlow("mark-for-deletion") {
+        enrichHeaders {
+            header("request", HTTPVerb.DELETE, true)
+        }
+        channel("cxx-db-data-ignore-content")
+    }
+
+    @Bean
     fun processChangesWithoutContent() = integrationFlow("cxx-db-data-ignore-content") {
         transform<Message<*>> { msg ->
             val specimenId = msg.headers["specimenId"]!!
             val requestType = msg.headers["request"]!! as HTTPVerb
-            logger.info("Processing specimen entry [id=$specimenId, changeType=$requestType]")
+            logger.info("Processing specimen entry [id=$specimenId, requestType=$requestType]")
             BundleEntryComponent().apply {
                 fullUrl = "${Identifiers.BIOBANK_CENTRAXX_SPECIMEN_OID}/${specimenId}"
                 request.method = requestType
