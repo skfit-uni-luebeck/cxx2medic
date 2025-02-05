@@ -58,6 +58,7 @@ build/
 /config/*
 !/config/README.md
 !/config/*.template.*
+!/config/logback-spring.xml
 
 /.idea/
 /.kotlin//.gradle/
