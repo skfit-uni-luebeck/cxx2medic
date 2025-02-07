@@ -9,6 +9,9 @@ import org.springframework.messaging.Message
 import org.springframework.messaging.support.MessageHeaderAccessor
 import java.util.Collections
 
+/**
+ * ONLY WORKS WHEN MESSAGES ARE RECEIVED IN ORDER
+ */
 class SequenceAwareMessageCountReleaseStrategy(
     private val threshold: Int
 ): ReleaseStrategy
@@ -20,10 +23,9 @@ class SequenceAwareMessageCountReleaseStrategy(
             0           -> true
             threshold   -> true
             else        -> {
-                val minMessage = Collections.min(group.messages, comparator)
-                val missingMessagesInGroup =
-                    group.sequenceSize - StaticMessageHeaderAccessor.getSequenceNumber(minMessage)
-                missingMessagesInGroup == 0
+                val maxMessage = Collections.min(group.messages, comparator)
+                val maxMessageSeqNumber = StaticMessageHeaderAccessor.getSequenceNumber(maxMessage)
+                group.sequenceSize == maxMessageSeqNumber
             }
         }
     }

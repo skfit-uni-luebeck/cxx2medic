@@ -33,6 +33,7 @@ import org.springframework.messaging.MessageHeaders
 import org.springframework.messaging.support.MessageBuilder
 import org.springframework.scheduling.support.CronTrigger
 import java.math.BigDecimal
+import java.time.Duration
 import java.time.Instant
 import java.util.*
 
@@ -119,24 +120,6 @@ class CXX2S3Job(
         channel("cxx-fhir-data")
     }
 
-    /*@Bean
-    fun filterByCriteria(
-        @Autowired evaluationService: FhirPathEvaluationServiceR4
-    ) = integrationFlow("cxx-fhir-data") {
-        filter<Message<Triple<Option<Specimen>, Option<Consent>, Option<Patient>>>> { m ->
-            val list = m.payload.toList().map { if (it.isSome()) it.getOrNull()!! else return@filter false }
-            logger.info("Evaluating Specimen [id=${list[0].idPart}]")
-            kotlin.runCatching { evaluationService.evaluate(list) }.getOrElse { exc ->
-                when (exc) {
-                    is NoSuchElementException -> logger.debug("${exc.message} => Excluding")
-                    else -> logger.warn("Failed to evaluate criteria => Excluding", exc)
-                }
-                false
-            }
-        }
-        channel("filtered-fhir-data")
-    }*/
-
     @Bean
     fun routeBasedOnCriteria(
         @Autowired evaluationService: FhirPathEvaluationServiceR4
@@ -164,7 +147,7 @@ class CXX2S3Job(
     }
 
     @Bean
-    fun checkPatientIdentifier(
+    fun enrichSpecimen(
         @Autowired cxxSettings: CentraXXSettings,
         @Autowired identifierPattern: Pattern<Identifier>
     ) = integrationFlow("filtered-fhir-data") {
@@ -172,26 +155,13 @@ class CXX2S3Job(
             // Due to the previous step the values cannot be null or None so they can be unpacked safely
             Triple(specimen.getOrNull()!!, consent.getOrNull()!!, patient.getOrNull()!!)
         }
-        route<Message<Triple<Specimen, Consent, Patient>>> { msg ->
+        filter<Message<Triple<Specimen, Consent, Patient>>> { msg ->
             val (_, _, patient) = msg.payload
             val result = patient.identifier.any { identifierPattern.evaluate(it) }
-            if (result) "enrich-specimen"
-            else {
-                logger.debug(
-                    "Patient resource has no identifier with configured type code " +
-                            "[id=${patient.idPart}] => Excluding"
-                )
-                "mark-for-deletion"
-            }
+            if (!result) logger.debug("Patient resource has no identifier with configured type code " +
+                    "[id=${patient.idPart}] => Excluding")
+            result
         }
-        //channel("enrich-specimen")
-    }
-
-    @Bean
-    fun enrichSpecimen(
-        @Autowired cxxSettings: CentraXXSettings,
-        @Autowired identifierPattern: Pattern<Identifier>
-    ) = integrationFlow("enrich-specimen") {
         transform<Message<Triple<Specimen, Consent, Patient>>> { msg ->
             val (specimen, consent, patient) = msg.payload
             // FIXME: Add proper request type adjustment based on current request type similar to criteria definition
@@ -263,10 +233,15 @@ class CXX2S3Job(
     fun aggregateSpecimenToBundles(
         @Autowired bundleSizeLimit: Int
     ) = integrationFlow("specimen-fhir-data") {
+        resequence {
+            correlationStrategy(HeaderAttributeCorrelationStrategy(IntegrationMessageHeaderAccessor.CORRELATION_ID))
+        }
         aggregate {
             expireGroupsUponCompletion(true)
             releaseStrategy(SequenceAwareMessageCountReleaseStrategy(bundleSizeLimit))
             correlationStrategy(HeaderAttributeCorrelationStrategy(IntegrationMessageHeaderAccessor.CORRELATION_ID))
+            groupTimeout(10000)
+            sendPartialResultOnExpiry(true)
         }
         transform<List<BundleEntryComponent>> { list ->
             Bundle().apply {
