@@ -22,6 +22,8 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.integration.IntegrationMessageHeaderAccessor
+import org.springframework.integration.aggregator.HeaderAttributeCorrelationStrategy
 import org.springframework.integration.channel.PublishSubscribeChannel
 import org.springframework.integration.config.EnableIntegration
 import org.springframework.integration.core.MessageSource
@@ -236,7 +238,11 @@ class CXX2S3Job(
     fun aggregateSpecimenToBundles(
         @Autowired bundleSizeLimit: Int
     ) = integrationFlow("specimen-fhir-data") {
-        aggregate { releaseStrategy(SequenceAwareMessageCountReleaseStrategy(bundleSizeLimit)) }
+        aggregate {
+            expireGroupsUponCompletion(true)
+            releaseStrategy(SequenceAwareMessageCountReleaseStrategy(bundleSizeLimit))
+            correlationStrategy(HeaderAttributeCorrelationStrategy(IntegrationMessageHeaderAccessor.CORRELATION_ID))
+        }
         transform<List<BundleEntryComponent>> { list ->
             Bundle().apply {
                 id = UUID.randomUUID().toString()
