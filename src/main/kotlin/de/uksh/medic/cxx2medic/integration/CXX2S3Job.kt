@@ -56,7 +56,20 @@ class CXX2S3Job(
             //header("consentPattern", consentPattern(triggerContext.currentExecution()))
         }
         split<List<Map<String, String?>>> { it }
-        filter<Map<String, String?>> { row -> null !in row.values }
+        route<Map<String, String?>> { row ->
+            if (row["specimen_id"] == null) {
+                logger.warn("Missing specimen ID [patientId='${row["patient_id"]}', consentId='${row["consent_id"]}']")
+                "nullChannel"
+            } else if (row["patient_id"] == null || row["consent_id"] == null) {
+                logger.info("Missing patient or consent ID [specimenId='${row["specimenId"]}'] => Excluding")
+                "mark-for-deletion"
+            } else "add-headers"
+        }
+        //channel("add-headers")
+    }
+
+    @Bean
+    fun addHeaders() = integrationFlow("add-headers") {
         transform<Message<Map<String, String?>>> { msg: Message<Map<String, String?>> ->
             val m = msg.payload
             val specimenId = m["specimen_id"]!!
@@ -151,7 +164,7 @@ class CXX2S3Job(
     }
 
     @Bean
-    fun enrichSpecimen(
+    fun checkPatientIdentifier(
         @Autowired cxxSettings: CentraXXSettings,
         @Autowired identifierPattern: Pattern<Identifier>
     ) = integrationFlow("filtered-fhir-data") {
@@ -159,20 +172,32 @@ class CXX2S3Job(
             // Due to the previous step the values cannot be null or None so they can be unpacked safely
             Triple(specimen.getOrNull()!!, consent.getOrNull()!!, patient.getOrNull()!!)
         }
-        filter<Message<Triple<Specimen, Consent, Patient>>> { msg ->
+        route<Message<Triple<Specimen, Consent, Patient>>> { msg ->
             val (_, _, patient) = msg.payload
             val result = patient.identifier.any { identifierPattern.evaluate(it) }
-            if (!result) logger.debug("Patient resource has no identifier with configured type code " +
-                    "[id=${patient.idPart}] => Excluding")
-            result
+            if (result) "enrich-specimen"
+            else {
+                logger.debug(
+                    "Patient resource has no identifier with configured type code " +
+                            "[id=${patient.idPart}] => Excluding"
+                )
+                "mark-for-deletion"
+            }
         }
+        //channel("enrich-specimen")
+    }
+
+    @Bean
+    fun enrichSpecimen(
+        @Autowired cxxSettings: CentraXXSettings,
+        @Autowired identifierPattern: Pattern<Identifier>
+    ) = integrationFlow("enrich-specimen") {
         transform<Message<Triple<Specimen, Consent, Patient>>> { msg ->
             val (specimen, consent, patient) = msg.payload
             // FIXME: Add proper request type adjustment based on current request type similar to criteria definition
             //        and evaluation
             // If there is no material remains emit a DELETE action
-            val requestType = if (specimenIsEmpty.evaluate(specimen)) HTTPVerb.DELETE
-                              else msg.headers["request"] as HTTPVerb
+            val requestType = msg.headers["request"] as HTTPVerb
 
             logger.info("Processing Specimen resource [id=${specimen.idPart}, requestType=$requestType]")
 
@@ -287,7 +312,7 @@ class CXX2S3Job(
             }
         }
 
-    private val specimenIsEmpty: Pattern<Specimen> =
+    private val specimenIsNotEmpty: Pattern<Specimen> =
         pattern {
             anyOf({ container }) {
                 check { specimenQuantity.value > BigDecimal.ZERO }
