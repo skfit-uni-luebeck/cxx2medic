@@ -57,12 +57,20 @@ class CXX2S3Job(
             //header("consentPattern", consentPattern(triggerContext.currentExecution()))
         }
         split<List<Map<String, String?>>> { it }
+        enrichHeaders {
+            headerExpression("specimenId", "payload['specimen_id']")
+            headerExpression("patientId", "payload['patient_id']")
+            headerExpression("consentId", "payload['consent_id']")
+        }
         route<Map<String, String?>> { row ->
-            if (row["specimen_id"] == null) {
-                logger.warn("Missing specimen ID [patientId='${row["patient_id"]}', consentId='${row["consent_id"]}']")
+            val specimenId = row["specimen_id"]
+            val patientId = row["patient_id"]
+            val consentId = row["consent_id"]
+            if (specimenId == null) {
+                logger.warn("Missing specimen ID [patientId=${patientId}, consentId=${consentId}]")
                 "nullChannel"
-            } else if (row["patient_id"] == null || row["consent_id"] == null) {
-                logger.info("Missing patient or consent ID [specimenId='${row["specimenId"]}'] => Excluding")
+            } else if (patientId == null || consentId == null) {
+                logger.info("Missing patient or consent ID [specimenId=${specimenId}] => Excluding")
                 "mark-for-deletion"
             } else "add-headers"
         }
@@ -84,9 +92,6 @@ class CXX2S3Job(
                     "D" -> HTTPVerb.DELETE  // delete
                     else -> throw UnknownChangeTypeException(changeType)
                 })
-                .setHeader("specimenId", specimenId)
-                .setHeader("patientId", patientId)
-                .setHeader("consentId", consentId)
                 .build()
         }
         channel("cxx-db-data")
