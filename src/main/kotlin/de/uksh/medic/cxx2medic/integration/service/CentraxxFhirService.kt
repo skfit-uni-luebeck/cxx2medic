@@ -5,6 +5,7 @@ import arrow.core.Option
 import arrow.core.Some
 import ca.uhn.fhir.context.FhirContext
 import ca.uhn.fhir.rest.client.api.IGenericClient
+import ca.uhn.fhir.rest.client.api.ServerValidationModeEnum
 import ca.uhn.fhir.rest.client.interceptor.BasicAuthInterceptor
 import de.uksh.medic.cxx2medic.authentication.OAuthClientCredentials
 import de.uksh.medic.cxx2medic.authentication.OAuthPasswordCredentials
@@ -35,7 +36,9 @@ class CentraXXFhirService(
 )
 {
     private val url: String = settings.url
-    private val client: IGenericClient = fhirContext.newRestfulGenericClient(url)
+    private val client: IGenericClient = fhirContext.apply {
+        restfulClientFactory.serverValidationMode = ServerValidationModeEnum.ONCE
+    }.newRestfulGenericClient(url)
 
     init
     {
