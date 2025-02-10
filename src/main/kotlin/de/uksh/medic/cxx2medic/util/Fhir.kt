@@ -1,4 +1,6 @@
 package de.uksh.medic.cxx2medic.util
 
-fun getResourceType(fhirPath: String): String =
-    fhirPath.split(".")[0]
+import org.hl7.fhir.r4.model.ExampleScenario.FHIRResourceType
+
+fun getResourceTypeR4(fhirPath: String): FHIRResourceType =
+    FHIRResourceType.fromCode(fhirPath.split(".")[0])

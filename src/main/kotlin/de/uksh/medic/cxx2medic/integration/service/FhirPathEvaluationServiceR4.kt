@@ -1,10 +1,11 @@
 package de.uksh.medic.cxx2medic.integration.service
 
 import ca.uhn.fhir.context.FhirContext
+import ca.uhn.fhir.fhirpath.FhirPathExecutionException
 import de.uksh.medic.cxx2medic.exception.UnsupportedValueException
 import de.uksh.medic.cxx2medic.fhir.query.FhirQuery
 import de.uksh.medic.cxx2medic.util.evaluateToBoolean
-import de.uksh.medic.cxx2medic.util.getResourceType
+import de.uksh.medic.cxx2medic.util.getResourceTypeR4
 import org.hl7.fhir.exceptions.FHIRException
 import org.hl7.fhir.r4.fhirpath.FHIRPathEngine
 import org.hl7.fhir.r4.hapi.ctx.HapiWorkerContext
@@ -42,14 +43,25 @@ class FhirPathEvaluationServiceR4(
 
     private fun evaluate(expression: String, map: Map<String, Base>): Boolean
     {
-        val a = engine.evaluateToBoolean(map[getResourceType(expression)]!!, expression)
-        return a
+        try {
+            val resourceType = getResourceTypeR4(expression).toCode()
+            val resource = map[resourceType] ?:
+                throw IllegalArgumentException("Missing resource of type '${resourceType}'")
+            try { return engine.evaluateToBoolean(resource, expression) }
+            catch (exc: Exception) {
+                throw FhirPathExecutionException("Failed to evaluate FHIRPath expression against resource " +
+                        "[type=${resource.fhirType()}, id=${resource.idBase}]", exc)
+            }
+        }
+        catch (exc: Exception) {
+            throw Exception("Could not evaluate expression '${expression}'", exc)
+        }
     }
 
     private fun evaluateVariables(query: FhirQuery, map: Map<String, Base>): Map<String, String>
     {
         return query.variables.mapValues { e ->
-            val resourceType = getResourceType(e.value)
+            val resourceType = getResourceTypeR4(e.value).toCode()
             val results = kotlin.runCatching { engine.evaluate(map[resourceType]!!, e.value) }.getOrElse { exc ->
                 throw FHIRException("Failed to resolve variable", exc)
             }

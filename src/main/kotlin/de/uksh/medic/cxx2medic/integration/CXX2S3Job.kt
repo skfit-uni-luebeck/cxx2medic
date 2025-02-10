@@ -141,7 +141,8 @@ class CXX2S3Job(
             }.getOrElse { exc ->
                 when (exc) {
                     is NoSuchElementException -> logger.warn("${exc.message} => Excluding")
-                    else -> logger.warn("Failed to evaluate criteria => Excluding", exc)
+                    else -> logger.warn("Failed to evaluate criteria [id=${m.headers["specimenId"]!!}] " +
+                            "=> Excluding", exc)
                 }
                 deleteChannel
             }

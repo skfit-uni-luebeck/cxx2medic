@@ -7,7 +7,7 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import com.fasterxml.jackson.databind.deser.std.StdDeserializer
 import com.fasterxml.jackson.databind.node.ArrayNode
 import de.uksh.medic.cxx2medic.util.replaceAll
-import de.uksh.medic.cxx2medic.util.getResourceType
+import de.uksh.medic.cxx2medic.util.getResourceTypeR4
 
 data class FhirQuery(
     val description: String?,
@@ -39,7 +39,7 @@ data class FhirQuery(
         FhirQuery(description, constants, emptyMap(), criteria.insertPlaceholders(variables))
 
     fun getInvolvedFhirTypes(): Set<String> =
-        variables.map { getResourceType(it.value) } union criteria.getInvolvedFhirTypes()
+        variables.map { getResourceTypeR4(it.value).toCode() } union criteria.getInvolvedFhirTypes()
 
     @JsonDeserialize(using = AndClause.Serializer::class)
     data class AndClause(val orClauses: List<OrClause>, val expressions: List<String>)
@@ -52,7 +52,8 @@ data class FhirQuery(
         )
 
         fun getInvolvedFhirTypes(): Set<String> =
-            expressions.map { getResourceType(it) } union orClauses.map { it.getInvolvedFhirTypes() }.reduce { s1, s2 -> s1 union s2}
+            expressions.map { getResourceTypeR4(it).toCode() } union
+                    orClauses.map { it.getInvolvedFhirTypes() }.reduce { s1, s2 -> s1 union s2}
 
         class Serializer(vc: Class<*>? = null): StdDeserializer<AndClause>(vc)
         {
@@ -87,7 +88,8 @@ data class FhirQuery(
         )
 
         fun getInvolvedFhirTypes(): Set<String> =
-            expressions.map { getResourceType(it) } union andClauses.map { it.getInvolvedFhirTypes() }.reduce { s1, s2 -> s1 union s2 }
+            expressions.map { getResourceTypeR4(it).toCode() } union
+                    andClauses.map { it.getInvolvedFhirTypes() }.reduce { s1, s2 -> s1 union s2 }
 
         companion object
         {
