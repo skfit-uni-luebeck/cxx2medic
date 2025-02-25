@@ -4,6 +4,7 @@ import arrow.core.None
 import arrow.core.Option
 import arrow.core.Some
 import ca.uhn.fhir.context.FhirContext
+import ca.uhn.fhir.rest.client.apache.ApacheHttpClient
 import ca.uhn.fhir.rest.client.api.IGenericClient
 import ca.uhn.fhir.rest.client.api.ServerValidationModeEnum
 import ca.uhn.fhir.rest.client.interceptor.BasicAuthInterceptor
@@ -18,6 +19,13 @@ import de.uksh.medic.cxx2medic.config.FhirSettings
 import de.uksh.medic.cxx2medic.evaluation.b
 import org.apache.http.auth.AuthenticationException
 import org.apache.http.auth.Credentials
+import org.apache.http.client.HttpClient
+import org.apache.http.client.config.RequestConfig
+import org.apache.http.client.protocol.HttpClientContext
+import org.apache.http.impl.client.BasicCookieStore
+import org.apache.http.impl.client.HttpClientBuilder
+import org.apache.http.impl.client.HttpClients
+import org.apache.http.impl.conn.PoolingHttpClientConnectionManager
 import org.apache.logging.log4j.LogManager
 import org.apache.logging.log4j.Logger
 import org.springframework.beans.factory.annotation.Autowired
@@ -27,6 +35,7 @@ import org.springframework.stereotype.Service
 import usr.paulolaup.fhir.client.interceptor.oauth.ClientCredentialsOAuthInterceptor
 import usr.paulolaup.fhir.client.interceptor.oauth.PasswordOAuthInterceptor
 import usr.paulolaup.fhir.client.interceptor.oauth.RefreshTokenOAuthInterceptor
+import java.util.concurrent.TimeUnit
 import kotlin.reflect.full.companionObject
 
 @Service
@@ -36,14 +45,12 @@ class CentraXXFhirService(
 )
 {
     private val url: String = settings.url
-    private val client: IGenericClient = fhirContext.apply {
-        restfulClientFactory.serverValidationMode = ServerValidationModeEnum.ONCE
-    }.newRestfulGenericClient(url)
+    private val client: IGenericClient = fhirContext.newRestfulGenericClient(url)
 
     init
     {
         // Activate OAuth authorization if settings reflect its presence
-        settings.authorization.onSome { it ->
+        settings.authorization.onSome {
             it.basic.fold (
                 { it.oauth.fold(
                     { throw AuthenticationException("No Authentication data provided in authentication config") },

@@ -32,10 +32,6 @@ import java.nio.file.Path
 class CXX2S3Application
 {
     @Bean
-    fun fhirContext(): FhirContext =
-        FhirContext.forR4()
-
-    @Bean
     fun fhirPatientCache(): ConcurrentMapCacheFactoryBean =
         ConcurrentMapCacheFactoryBean().apply { setName("fhirPatientCache") }
 
