@@ -1,13 +1,15 @@
 plugins {
-    id 'org.jetbrains.kotlin.jvm' version '1.9.22'
+    id 'org.jetbrains.kotlin.jvm' version '1.9.23'
     id 'org.springframework.boot' version '3.2.2'
     id("io.spring.dependency-management") version "1.1.4"
-    id "org.jetbrains.kotlin.plugin.spring" version "1.9.22"
-    id "org.jetbrains.kotlin.plugin.serialization" version "1.9.22"
+    id "org.jetbrains.kotlin.plugin.spring" version "1.9.23"
+    id "org.jetbrains.kotlin.plugin.serialization" version "1.9.23"
+    id 'com.google.devtools.ksp' version '1.9.23-1.0.19'
+    id 'application'
 }
 
 group = 'de.uksh.medic'
-version = '0.0.1'
+version = '0.0.2'
 
 dependencies {
     implementation 'org.jetbrains.kotlinx:kotlinx-cli-jvm:0.3.6'
@@ -48,8 +50,12 @@ dependencies {
     implementation 'com.microsoft.sqlserver:mssql-jdbc:12.8.1.jre11'
 
     // Functional
-    implementation 'io.arrow-kt:arrow-core:1.2.4'
-    implementation 'io.arrow-kt:arrow-fx-coroutines:1.2.4'
+    implementation platform('io.arrow-kt:arrow-stack:1.2.4')
+    implementation 'io.arrow-kt:arrow-core'
+    implementation 'io.arrow-kt:arrow-fx-coroutines'
+    implementation 'io.arrow-kt:arrow-optics'
+    implementation 'io.arrow-kt:arrow-integrations-jackson-module:0.14.1'
+    ksp 'io.arrow-kt:arrow-optics-ksp-plugin:1.2.4'
 
     // Client
     implementation 'com.squareup.okhttp3:okhttp:5.0.0-alpha.14'
@@ -73,4 +79,8 @@ repositories {
             password = project.findProperty("gpr.key") ?: System.getenv("TOKEN")
         }
     }
+}
+
+application {
+    mainClass = "de.uksh.medic.cxx2medic.CXX2S3ApplicationKt"
 }

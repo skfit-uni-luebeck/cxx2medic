@@ -1,6 +1,7 @@
 package de.uksh.medic.cxx2medic.config
 
 import de.uksh.medic.cxx2medic.integration.scheduling.UpToDateTriggerContext
+import de.uksh.medic.cxx2medic.integration.service.RecoveryPersistenceService
 import de.uksh.medic.cxx2medic.integration.source.IntervalJdbcQueryDataSource
 import org.apache.logging.log4j.LogManager
 import org.apache.logging.log4j.Logger

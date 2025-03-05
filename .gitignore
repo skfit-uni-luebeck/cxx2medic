@@ -53,6 +53,7 @@ build/
 !.mvn/wrapper/maven-wrapper.properties
 
 ### Own ###
+/data/
 /testdata/
 
 /config/*

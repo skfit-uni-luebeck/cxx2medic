@@ -34,6 +34,9 @@ s3:
 #  region: "(optional) <region-str>"
   bundleSizeLimit: <positive-number>
 
+recovery:
+  file: "path/where/recovery/file/should/live"
+
 logging:
   config: "config/logback-spring.xml"
 #  level:
