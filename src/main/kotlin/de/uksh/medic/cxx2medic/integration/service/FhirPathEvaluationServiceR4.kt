@@ -22,7 +22,7 @@ class FhirPathEvaluationServiceR4(
     private val fhirContext: FhirContext = FhirContext.forR4Cached()
     private val engine: FHIRPathEngine = FHIRPathEngine(HapiWorkerContext(fhirContext, fhirContext.validationSupport))
         .apply { this.isAllowPolymorphicNames = true }
-    private val query: FhirQuery = fhirQuery.insertConstants()
+    val query: FhirQuery = fhirQuery.insertConstants()
 
     fun evaluate(resources: List<Base>): Boolean
     {

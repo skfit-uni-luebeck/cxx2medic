@@ -8,6 +8,7 @@ import ca.uhn.fhir.rest.client.apache.ApacheHttpClient
 import ca.uhn.fhir.rest.client.api.IGenericClient
 import ca.uhn.fhir.rest.client.api.ServerValidationModeEnum
 import ca.uhn.fhir.rest.client.interceptor.BasicAuthInterceptor
+import ca.uhn.fhir.rest.server.exceptions.ResourceNotFoundException
 import de.uksh.medic.cxx2medic.authentication.OAuthClientCredentials
 import de.uksh.medic.cxx2medic.authentication.OAuthPasswordCredentials
 import de.uksh.medic.cxx2medic.authentication.OAuthRefreshTokenCredentials
@@ -72,37 +73,44 @@ class CentraXXFhirService(
         }
     }
 
-    final inline fun <reified T: IBaseResource> read(id: String): Result<T> =
+    final inline fun <reified T: IBaseResource> read(id: String): Option<T> =
         read(id, T::class.java)
 
-    fun <T: IBaseResource> read(id: String, clazz: Class<T>): Result<T> =
-        kotlin.runCatching { client.read().resource(clazz).withId(id).execute() }
+    fun <T: IBaseResource> read(id: String, clazz: Class<T>): Option<T> =
+        kotlin.runCatching { client.read().resource(clazz).withId(id).execute() }.fold(
+            { p -> Some(p) },
+            { e ->
+                val msg = "Failed to retrieve ${clazz.simpleName} resource [id=$id]: ${e.message}"
+                if (e is ResourceNotFoundException) logger.debug(msg)
+                else logger.warn(msg, e)
+                None
+            }
+        )
 
-    fun read(id: String, type: String): Result<IBaseResource> =
-        kotlin.runCatching { client.read().resource(type).withId(id).execute() }
+    fun read(id: String, type: String): Option<IBaseResource> =
+        kotlin.runCatching { client.read().resource(type).withId(id).execute() }.fold(
+            { p -> Some(p) },
+            { e ->
+                val msg = "Failed to retrieve $type resource [id=$id]: ${e.message}"
+                if (e is ResourceNotFoundException) logger.debug(msg)
+                else logger.warn(msg, e)
+                None
+            }
+        )
 
     @Cacheable("fhirPatientCache", cacheManager = "cacheManager")
     fun readPatient(id: String): Option<Patient> =
-        (read(id, "Patient") as Result<Patient>).fold(
-            { p -> Some(p) },
-            { e -> logger.warn("Failed to retrieve Patient resource [id=$id]: ${e.message}"); logger.debug(e); None }
-        )
+        read(id, "Patient") as Option<Patient>
 
     // Caches for Consent resources are currently deactivated since they are checked for their policies and changes to
     // them are crucial to detect. Consequently, those resources should be kept up to date. Alternatively one could
     // reset the cache before each run to at least cache resources within a single run
     @Cacheable("fhirConsentCache", cacheManager = "cacheManager")
     fun readConsent(id: String): Option<Consent> =
-        (read(id, "Consent") as Result<Consent>).fold(
-            { c -> Some(c) },
-            { e -> logger.warn("Failed to retrieve Consent resource [id=$id]: ${e.message}"); logger.debug(e); None }
-        )
+        read(id, "Consent") as Option<Consent>
 
     fun readSpecimen(id: String): Option<Specimen> =
-        (read(id, "Specimen") as Result<Specimen>).fold(
-            { s -> Some(s) },
-            { e -> logger.warn("Failed to retrieve Specimen resource [id=$id]: ${e.message}"); logger.debug(e); None }
-        )
+        read(id, "Specimen") as Option<Specimen>
 
     companion object
     {
