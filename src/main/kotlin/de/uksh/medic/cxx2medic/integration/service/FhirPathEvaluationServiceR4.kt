@@ -38,8 +38,7 @@ class FhirPathEvaluationServiceR4(
         clause.expressions.all { evaluate(it, map) } && clause.orClauses.all { evaluate(it, map) }
 
     private fun evaluate(clause: FhirQuery.OrClause, map: Map<String, Base>): Boolean =
-        clause.expressions.run { isEmpty() || any { evaluate(it, map) } }
-                || clause.andClauses.run { isEmpty() || any { evaluate(it, map) } }
+        clause.expressions.any { evaluate(it, map) } || clause.andClauses.any { evaluate(it, map) } || clause.isEmpty()
 
     private fun evaluate(expression: String, map: Map<String, Base>): Boolean
     {

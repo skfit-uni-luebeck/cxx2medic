@@ -55,6 +55,9 @@ data class FhirQuery(
             expressions.map { getResourceTypeR4(it).toCode() } union
                     orClauses.map { it.getInvolvedFhirTypes() }.reduce { s1, s2 -> s1 union s2}
 
+        fun isEmpty() =
+            this.expressions.isEmpty() && this.orClauses.isEmpty()
+
         class Serializer(vc: Class<*>? = null): StdDeserializer<AndClause>(vc)
         {
             override fun deserialize(parser: JsonParser, ctx: DeserializationContext?): AndClause =
@@ -90,6 +93,9 @@ data class FhirQuery(
         fun getInvolvedFhirTypes(): Set<String> =
             expressions.map { getResourceTypeR4(it).toCode() } union
                     andClauses.map { it.getInvolvedFhirTypes() }.reduce { s1, s2 -> s1 union s2 }
+
+        fun isEmpty() =
+            this.expressions.isEmpty() && this.andClauses.isEmpty()
 
         companion object
         {
