@@ -1,5 +1,7 @@
 package de.uksh.medic.cxx2medic.fhir.query
 
+import arrow.core.fold
+import arrow.core.memoize
 import com.fasterxml.jackson.core.JsonParseException
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.DeserializationContext
@@ -16,6 +18,10 @@ data class FhirQuery(
     val criteria: AndClause
 )
 {
+    private val memoizedFhirTypes =
+        { variables.fold(mutableSetOf<String>()) { acc, it -> acc += getResourceTypeR4(it.value).toCode(); acc }
+            .union(criteria.getInvolvedFhirTypes()) }.memoize()
+
     init
     {
         val intersection = constants.keys intersect variables.keys
@@ -38,8 +44,7 @@ data class FhirQuery(
     fun insertEvaluatedVariables(variables: Map<String, String>): FhirQuery =
         FhirQuery(description, constants, emptyMap(), criteria.insertPlaceholders(variables))
 
-    fun getInvolvedFhirTypes(): Set<String> =
-        variables.map { getResourceTypeR4(it.value).toCode() } union criteria.getInvolvedFhirTypes()
+    fun getInvolvedFhirTypes(): Set<String> = memoizedFhirTypes.invoke()
 
     @JsonDeserialize(using = AndClause.Serializer::class)
     data class AndClause(val orClauses: List<OrClause>, val expressions: List<String>)
@@ -53,7 +58,7 @@ data class FhirQuery(
 
         fun getInvolvedFhirTypes(): Set<String> =
             expressions.map { getResourceTypeR4(it).toCode() } union
-                    orClauses.map { it.getInvolvedFhirTypes() }.reduce { s1, s2 -> s1 union s2}
+                    orClauses.map { it.getInvolvedFhirTypes() }.fold(emptySet()) { acc, s -> acc union s}
 
         fun isEmpty() =
             this.expressions.isEmpty() && this.orClauses.isEmpty()
@@ -92,7 +97,7 @@ data class FhirQuery(
 
         fun getInvolvedFhirTypes(): Set<String> =
             expressions.map { getResourceTypeR4(it).toCode() } union
-                    andClauses.map { it.getInvolvedFhirTypes() }.reduce { s1, s2 -> s1 union s2 }
+                    andClauses.map { it.getInvolvedFhirTypes() }.fold(emptySet()) { acc, s -> acc union s}
 
         fun isEmpty() =
             this.expressions.isEmpty() && this.andClauses.isEmpty()

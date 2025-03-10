@@ -1,11 +1,14 @@
 package de.uksh.medic.cxx2medic.integration
 
+import arrow.core.None
 import arrow.core.Option
+import arrow.core.Some
 import ca.uhn.fhir.context.FhirContext
 import de.uksh.medic.cxx2medic.config.CentraXXSettings
 import de.uksh.medic.cxx2medic.evaluation.Pattern
 import de.uksh.medic.cxx2medic.evaluation.pattern
 import de.uksh.medic.cxx2medic.exception.UnknownChangeTypeException
+import de.uksh.medic.cxx2medic.fhir.query.FhirQuery
 import de.uksh.medic.cxx2medic.integration.aggregator.strategy.SequenceAwareMessageCountReleaseStrategy
 import de.uksh.medic.cxx2medic.integration.handler.S3StorageWriterHandler
 import de.uksh.medic.cxx2medic.integration.scheduling.UpToDateTriggerContext
@@ -15,6 +18,7 @@ import de.uksh.medic.cxx2medic.integration.service.S3StorageService
 import de.uksh.medic.cxx2medic.util.Identifiers
 import org.apache.logging.log4j.LogManager
 import org.apache.logging.log4j.Logger
+import org.hl7.fhir.instance.model.api.IBaseResource
 import org.hl7.fhir.r4.model.*
 import org.hl7.fhir.r4.model.Bundle.BundleEntryComponent
 import org.hl7.fhir.r4.model.Bundle.HTTPVerb
@@ -42,9 +46,18 @@ private val logger: Logger = LogManager.getLogger(CXX2S3Job::class.java)
 @Configuration
 @EnableIntegration
 class CXX2S3Job(
-    @Autowired private val s3Service: S3StorageService
+    @Autowired private val s3Service: S3StorageService,
+    @Autowired fhirQuery: FhirQuery
 )
 {
+    init
+    {
+        if ("Consent" !in fhirQuery.getInvolvedFhirTypes()) {
+            logger.warn("Since no criterion targets the FHIR Consent resource type its presence will not be a " +
+                    "requirement for the export of a specimen")
+        }
+    }
+
     @Bean
     fun readCentraxxDatabase(
         @Autowired @Qualifier("cxx:msg-source") source: MessageSource<List<Map<String, String?>>>,
@@ -69,9 +82,12 @@ class CXX2S3Job(
             if (specimenId == null) {
                 logger.warn("Missing specimen ID [patientId=${patientId}, consentId=${consentId}]")
                 "nullChannel"
-            } else if (patientId == null || consentId == null) {
-                logger.info("Missing patient or consent ID [specimenId=${specimenId}] => Excluding")
+            } else if (patientId == null) {
+                logger.info("Missing patient ID [specimenId=${specimenId}] => Excluding")
                 "mark-for-deletion"
+            } else if (consentId == null) {
+                logger.debug("Missing consent ID [specimenId=${specimenId}]")
+                "add-headers"
             } else "add-headers"
         }
         //channel("add-headers")
@@ -83,9 +99,12 @@ class CXX2S3Job(
             val m = msg.payload
             val specimenId = m["specimen_id"]!!
             val patientId = m["patient_id"]!!
-            val consentId = m["consent_id"]!!
-            MessageBuilder.withPayload(Triple(specimenId, patientId, consentId))
-                .copyHeaders(msg.headers)
+            val consentId = m["consent_id"]
+            MessageBuilder.withPayload(mapOf(
+                "Specimen" to specimenId,
+                "Patient" to patientId,
+                "Consent" to consentId
+            )).copyHeaders(msg.headers)
                 .setHeader("request", when (val changeType = m["change_kind"]!!) {
                     "I" -> HTTPVerb.POST    // create
                     "U" -> HTTPVerb.PUT     // update
@@ -99,7 +118,7 @@ class CXX2S3Job(
 
     @Bean
     fun routeByChangeKind() = integrationFlow("cxx-db-data") {
-        route<Message<Triple<String, String, String>>> { m ->
+        route<Message<Map<String, String?>>> { m ->
             when (val verb = m.headers["request"] as HTTPVerb) {
                 HTTPVerb.POST, HTTPVerb.PUT -> "cxx-db-data-query-facade"
                 HTTPVerb.DELETE -> "cxx-db-data-ignore-content"
@@ -113,14 +132,29 @@ class CXX2S3Job(
 
     @Bean
     fun readCentraxxFhirFacade(
-        @Autowired fhirService: CentraXXFhirService,
+        @Autowired fhirService: CentraXXFhirService
     ) = integrationFlow("cxx-db-data-query-facade") {
-        transform<Message<Triple<String, String, String>>> { msg: Message<Triple<String, String, String>> ->
-            val m = msg.payload
-            val specimen = fhirService.readSpecimen(m.first)
-            val patient = fhirService.readPatient(m.second)
-            val consent = fhirService.readConsent(m.third)
-            Triple(specimen, consent, patient)
+        transform<Message<Map<String, String?>>> { msg: Message<Map<String, String?>> ->
+            msg.payload.mapValues {
+                if (it.value != null) fhirService.read(it.value!!, it.key).onNone {
+                    logger.debug(
+                        "Could not find {} instance with ID '{}' [specimenId={}]",
+                        it.key, it.value, msg.headers["specimenId"]
+                    )
+                }
+                else {
+                    logger.debug(
+                        "No ID to retrieve instance of type {} with [specimenId={}]",
+                        it.key, msg.headers["specimenId"]
+                    )
+                    None
+                }
+            }
+            //val m = msg.payload
+            //val specimen = fhirService.readSpecimen(m.first)
+            //val patient = fhirService.readPatient(m.second)
+            //val consent = fhirService.readConsent(m.third)
+            //Triple(specimen, consent, patient)
         }
         channel("cxx-fhir-data")
     }
@@ -129,13 +163,23 @@ class CXX2S3Job(
     fun routeBasedOnCriteria(
         @Autowired evaluationService: FhirPathEvaluationServiceR4
     ) = integrationFlow("cxx-fhir-data") {
-        route<Message<Triple<Option<Specimen>, Option<Consent>, Option<Patient>>>> { m ->
+        route<Message<Map<String, Option<IBaseResource>>>> { m ->
             val keepChannel = "filtered-fhir-data"
             val deleteChannel = "mark-for-deletion"
+            val involvedFhirTypes = evaluationService.query.getInvolvedFhirTypes()
             val channel = kotlin.runCatching {
-                val list = m.payload.toList().map {
-                    if (it.isSome()) it.getOrNull()!! else return@runCatching deleteChannel
-                }
+                val list = m.payload.entries.filter {
+                    when (it.value) {
+                        is None -> {
+                            if (it.key in involvedFhirTypes) {
+                                logger.warn("Missing ${it.key} resource required for evaluation => Excluding")
+                                return@runCatching deleteChannel
+                            }
+                            false
+                        }
+                        is Some -> true
+                    }
+                }.map { it.value.getOrNull()!! as Base }
                 return@runCatching if (evaluationService.evaluate(list)) keepChannel
                 else deleteChannel
             }.getOrElse { exc ->
@@ -157,19 +201,22 @@ class CXX2S3Job(
         @Autowired cxxSettings: CentraXXSettings,
         @Autowired identifierPattern: Pattern<Identifier>
     ) = integrationFlow("filtered-fhir-data") {
-        transform<Triple<Option<Specimen>, Option<Consent>, Option<Patient>>> { (specimen, consent, patient) ->
+        transform<Map<String, Option<IBaseResource>>> { m ->
             // Due to the previous step the values cannot be null or None so they can be unpacked safely
-            Triple(specimen.getOrNull()!!, consent.getOrNull()!!, patient.getOrNull()!!)
+            val specimen = m["Specimen"]!!.getOrNull()!!
+            val oConsent = m["Consent"]!!
+            val patient = m["Patient"]!!.getOrNull()!!
+            Triple(specimen, oConsent, patient)
         }
-        filter<Message<Triple<Specimen, Consent, Patient>>> { msg ->
+        filter<Message<Triple<Specimen, Option<Consent>, Patient>>> { msg ->
             val (_, _, patient) = msg.payload
             val result = patient.identifier.any { identifierPattern.evaluate(it) }
             if (!result) logger.debug("Patient resource has no identifier with configured type code " +
                     "[id=${patient.idPart}] => Excluding")
             result
         }
-        transform<Message<Triple<Specimen, Consent, Patient>>> { msg ->
-            val (specimen, consent, patient) = msg.payload
+        transform<Message<Triple<Specimen, Option<Consent>, Patient>>> { msg ->
+            val (specimen, oConsent, patient) = msg.payload
             // FIXME: Add proper request type adjustment based on current request type similar to criteria definition
             //        and evaluation
             // If there is no material remains emit a DELETE action
@@ -186,7 +233,13 @@ class CXX2S3Job(
                 url = "https://medic.uksh.de/fhir/StructureDefinition/ext-specimen-consent-identifier"
                 setValue(Identifier().apply {
                     system = Identifiers.BIOBANK_CENTRAXX_CONSENT
-                    value = consent.idPart
+                    when (oConsent) {
+                        is None -> addExtension().apply {
+                                url = Identifiers.DATA_ABSENT_REASON
+                                setValue(CodeType("unknown"))
+                            }
+                        is Some -> value = oConsent.getOrNull()!!.idPart
+                    }
                 })
             })
             specimen.extension.add(Extension().apply {
