@@ -1,0 +1,606 @@
+{
+  "resourceType": "Bundle",
+  "type": "transaction",
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "157509",
+        "text": {
+          "status": "generated",
+          "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><div class=\"hapiHeaderText\">Olaf <b>SNOWMAN </b></div><table class=\"hapiPropertyTable\"><tbody><tr><td>Identifier</td><td>123456</td></tr><tr><td>Address</td><td/></tr><tr><td>Date of birth</td><td><span>01 Januar 2000</span></td></tr></tbody></table></div>"
+        },
+        "identifier": [
+          {
+            "type": {
+              "coding": [
+                {
+                  "system": "https://fhir.centraxx.de/system/idContainerType",
+                  "code": "KIS-ID",
+                  "display": "ORBIS-ID"
+                }
+              ]
+            },
+            "value": "123456"
+          }
+        ],
+        "active": true,
+        "name": [
+          {
+            "family": "Snowman",
+            "given": [
+              "Olaf"
+            ]
+          }
+        ],
+        "gender": "other",
+        "birthDate": "2000",
+        "deceasedBoolean": false,
+        "generalPractitioner": [
+          {
+            "reference": "Organization/11127"
+          }
+        ]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Patient/157509"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Consent",
+        "id": "12325",
+        "status": "active",
+        "scope": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/consentscope",
+              "code": "patient-privacy",
+              "display": "Privacy Consent"
+            }
+          ]
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://loinc.org",
+                "code": "59284-0",
+                "display": "Patient Consent"
+              }
+            ]
+          }
+        ],
+        "patient": {
+          "reference": "Patient/157509"
+        },
+        "dateTime": "2023-06-05T10:59:37+02:00",
+        "policyRule": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+              "code": "OPTINR",
+              "display": "opt-in with restrictions"
+            }
+          ]
+        },
+        "provision": {
+          "period": {
+            "start": "2023-06-05"
+          },
+          "purpose": [
+            {
+              "system": "https://fhir.centraxx.de/system/consent/type",
+              "code": "2IC",
+              "display": "2. IC Biomaterial ICB-L"
+            }
+          ],
+          "provision": [
+            {
+              "type": "permit",
+              "purpose": [
+                {
+                  "system": "https://fhir.centraxx.de/system/consent/action",
+                  "code": "moreinfo",
+                  "display": "Gewinnung weiterer Informationen/Biomaterialien"
+                }
+              ],
+              "class": [
+                {
+                  "system": "https://fhir.centraxx.de/system/consent/object",
+                  "code": "PATIENT",
+                  "display": "Patient"
+                }
+              ]
+            },
+            {
+              "type": "permit",
+              "purpose": [
+                {
+                  "system": "https://fhir.centraxx.de/system/consent/action",
+                  "code": "database",
+                  "display": "Einwilligung in den Abgleich mit anderen Datenbanken"
+                }
+              ],
+              "class": [
+                {
+                  "system": "https://fhir.centraxx.de/system/consent/object",
+                  "code": "PATIENT",
+                  "display": "Patient"
+                }
+              ]
+            },
+            {
+              "type": "permit",
+              "purpose": [
+                {
+                  "system": "https://fhir.centraxx.de/system/consent/action",
+                  "code": "doctor",
+                  "display": "Kontaktierung des behandelnden Arztes"
+                }
+              ],
+              "class": [
+                {
+                  "system": "https://fhir.centraxx.de/system/consent/object",
+                  "code": "PATIENT",
+                  "display": "Patient"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Consent/12325"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Specimen",
+        "id": "104742",
+        "extension": [
+          {
+            "url": "https://fhir.centraxx.de/extension/sampleCategory",
+            "valueCoding": {
+              "system": "https://fhir.centraxx.de/system/sampleCategory",
+              "code": "MASTER",
+              "display": "Stammprobe"
+            }
+          },
+          {
+            "url": "https://fhir.centraxx.de/extension/sprec",
+            "extension": [
+              {
+                "url": "https://fhir.centraxx.de/extension/sprec/useSprec",
+                "valueBoolean": true
+              },
+              {
+                "url": "https://fhir.centraxx.de/extension/sprec/sprecCode",
+                "valueCoding": {
+                  "system": "https://doi.org/10.1089/bio.2017.0109",
+                  "code": "BLD - PED - A - D - N - B - Z"
+                }
+              },
+              {
+                "url": "https://fhir.centraxx.de/extension/sprec/primarySampleContainer",
+                "valueCoding": {
+                  "system": "https://fhir.centraxx.de/system/sprec/primarySampleContainer",
+                  "code": "PED",
+                  "display": "Vacutainer Kalium EDTA oder verwandte (PED)"
+                }
+              },
+              {
+                "url": "https://fhir.centraxx.de/extension/sprec/preCentrifugationDelay",
+                "valueCoding": {
+                  "system": "https://fhir.centraxx.de/system/sprec/preCentrifugationDelay",
+                  "code": "A",
+                  "display": "RT < 2h (A)"
+                }
+              },
+              {
+                "url": "https://fhir.centraxx.de/extension/sprec/PUTCentrifugationDelay",
+                "valueCoding": {
+                  "system": "https://fhir.centraxx.de/system/sprec/PUTCentrifugationDelay",
+                  "code": "B",
+                  "display": "RT < 1h (B)"
+                }
+              },
+              {
+                "url": "https://fhir.centraxx.de/extension/sprec/stockProcessing",
+                "valueCoding": {
+                  "system": "https://fhir.centraxx.de/system/sprec/stockProcessing",
+                  "code": "410min1500g",
+                  "display": "4 °C 10 min 1500g mit Bremse"
+                }
+              },
+              {
+                "url": "https://fhir.centraxx.de/extension/sprec/secondProcessing",
+                "valueCoding": {
+                  "system": "https://fhir.centraxx.de/system/sprec/secondProcessing",
+                  "code": "KZGT_N",
+                  "display": "Keine Zentrifugation (N)"
+                }
+              }
+            ]
+          },
+          {
+            "url": "https://fhir.centraxx.de/extension/sample/repositionDate",
+            "valueDateTime": "2023-06-05T11:02:18+02:00"
+          }
+        ],
+        "identifier": [
+          {
+            "type": {
+              "coding": [
+                {
+                  "system": "https://fhir.centraxx.de/system/idContainerType",
+                  "code": "SAMPLEID",
+                  "display": "Proben ID"
+                }
+              ]
+            },
+            "value": "102394"
+          }
+        ],
+        "type": {
+          "coding": [
+            {
+              "system": "https://fhir.centraxx.de/system/sample/sampleType",
+              "code": "ST_F_BLD_VOLLBLUT",
+              "display": "Vollblut (BLD)"
+            },
+            {
+              "system": "https://doi.org/10.1089/bio.2017.0109",
+              "code": "BLD",
+              "display": "Vollblut (BLD)"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "Patient/157509"
+        },
+        "receivedTime": "2023-06-05T10:58:03+02:00",
+        "collection": {
+          "collectedDateTime": "2023-06-05",
+          "quantity": {
+            "value": 1.0000,
+            "unit": "PC"
+          }
+        },
+        "processing": [
+          {
+            "procedure": {
+              "coding": [
+                {
+                  "system": "urn:centraxx",
+                  "code": "410min1500g",
+                  "display": "4 °C 10 min 1500g mit Bremse"
+                },
+                {
+                  "system": "https://doi.org/10.1089/bio.2017.0109",
+                  "code": "D",
+                  "display": "2 °C bis 10 °C 10 - 15 min < 3000 g mit Bremse (D)"
+                }
+              ]
+            }
+          }
+        ],
+        "container": [
+          {
+            "identifier": [
+              {
+                "system": "https://fhir.centraxx.de/system/sample/sampleReceptacle",
+                "value": "SC_Y_OPC"
+              }
+            ],
+            "description": "Originaler Primärcontainer (Y)",
+            "capacity": {
+              "unit": "X"
+            },
+            "specimenQuantity": {
+              "value": 0.0000,
+              "unit": "PC"
+            }
+          }
+        ]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Specimen/104742"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Specimen",
+        "id": "104751",
+        "extension": [
+          {
+            "url": "https://fhir.centraxx.de/extension/sampleCategory",
+            "valueCoding": {
+              "system": "https://fhir.centraxx.de/system/sampleCategory",
+              "code": "ALIQUOTGROUP",
+              "display": "Aliquotgruppe"
+            }
+          },
+          {
+            "url": "https://fhir.centraxx.de/extension/sprec",
+            "extension": [
+              {
+                "url": "https://fhir.centraxx.de/extension/sprec/useSprec",
+                "valueBoolean": false
+              },
+              {
+                "url": "https://fhir.centraxx.de/extension/sprec/primarySampleContainer",
+                "valueCoding": {
+                  "system": "https://fhir.centraxx.de/system/sprec/primarySampleContainer",
+                  "code": "PED",
+                  "display": "Vacutainer Kalium EDTA oder verwandte (PED)"
+                }
+              },
+              {
+                "url": "https://fhir.centraxx.de/extension/sprec/preCentrifugationDelay",
+                "valueCoding": {
+                  "system": "https://fhir.centraxx.de/system/sprec/preCentrifugationDelay",
+                  "code": "A",
+                  "display": "RT < 2h (A)"
+                }
+              },
+              {
+                "url": "https://fhir.centraxx.de/extension/sprec/PUTCentrifugationDelay",
+                "valueCoding": {
+                  "system": "https://fhir.centraxx.de/system/sprec/PUTCentrifugationDelay",
+                  "code": "B",
+                  "display": "RT < 1h (B)"
+                }
+              },
+              {
+                "url": "https://fhir.centraxx.de/extension/sprec/stockProcessing",
+                "valueCoding": {
+                  "system": "https://fhir.centraxx.de/system/sprec/stockProcessing",
+                  "code": "410min1500g",
+                  "display": "4 °C 10 min 1500g mit Bremse"
+                }
+              },
+              {
+                "url": "https://fhir.centraxx.de/extension/sprec/secondProcessing",
+                "valueCoding": {
+                  "system": "https://fhir.centraxx.de/system/sprec/secondProcessing",
+                  "code": "KZGT_N",
+                  "display": "Keine Zentrifugation (N)"
+                }
+              }
+            ]
+          }
+        ],
+        "type": {
+          "coding": [
+            {
+              "system": "https://fhir.centraxx.de/system/sample/sampleType",
+              "code": "ST_F_SER_SERUM",
+              "display": "Serum (SER)"
+            },
+            {
+              "system": "https://doi.org/10.1089/bio.2017.0109",
+              "code": "SER",
+              "display": "Serum (SER)"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "Patient/157509"
+        },
+        "receivedTime": "2023-06-05T10:58:03+02:00",
+        "parent": [
+          {
+            "reference": "Specimen/104742"
+          }
+        ],
+        "collection": {
+          "collectedDateTime": "2023-06-05"
+        },
+        "processing": [
+          {
+            "procedure": {
+              "coding": [
+                {
+                  "system": "urn:centraxx",
+                  "code": "410min1500g",
+                  "display": "4 °C 10 min 1500g mit Bremse"
+                },
+                {
+                  "system": "https://doi.org/10.1089/bio.2017.0109",
+                  "code": "D",
+                  "display": "2 °C bis 10 °C 10 - 15 min < 3000 g mit Bremse (D)"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Specimen/104751"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Specimen",
+        "id": "104752",
+        "extension": [
+          {
+            "url": "https://fhir.centraxx.de/extension/sampleCategory",
+            "valueCoding": {
+              "system": "https://fhir.centraxx.de/system/sampleCategory",
+              "code": "DERIVED",
+              "display": "Prozessierte / Aliquotierte Probe"
+            }
+          },
+          {
+            "url": "https://fhir.centraxx.de/extension/sprec",
+            "extension": [
+              {
+                "url": "https://fhir.centraxx.de/extension/sprec/useSprec",
+                "valueBoolean": true
+              },
+              {
+                "url": "https://fhir.centraxx.de/extension/sprec/sprecCode",
+                "valueCoding": {
+                  "system": "https://doi.org/10.1089/bio.2017.0109",
+                  "code": "SER - PED - A - D - N - B - Z"
+                }
+              },
+              {
+                "url": "https://fhir.centraxx.de/extension/sprec/primarySampleContainer",
+                "valueCoding": {
+                  "system": "https://fhir.centraxx.de/system/sprec/primarySampleContainer",
+                  "code": "PED",
+                  "display": "Vacutainer Kalium EDTA oder verwandte (PED)"
+                }
+              },
+              {
+                "url": "https://fhir.centraxx.de/extension/sprec/preCentrifugationDelay",
+                "valueCoding": {
+                  "system": "https://fhir.centraxx.de/system/sprec/preCentrifugationDelay",
+                  "code": "A",
+                  "display": "RT < 2h (A)"
+                }
+              },
+              {
+                "url": "https://fhir.centraxx.de/extension/sprec/PUTCentrifugationDelay",
+                "valueCoding": {
+                  "system": "https://fhir.centraxx.de/system/sprec/PUTCentrifugationDelay",
+                  "code": "B",
+                  "display": "RT < 1h (B)"
+                }
+              },
+              {
+                "url": "https://fhir.centraxx.de/extension/sprec/stockProcessing",
+                "valueCoding": {
+                  "system": "https://fhir.centraxx.de/system/sprec/stockProcessing",
+                  "code": "410min1500g",
+                  "display": "4 °C 10 min 1500g mit Bremse"
+                }
+              },
+              {
+                "url": "https://fhir.centraxx.de/extension/sprec/secondProcessing",
+                "valueCoding": {
+                  "system": "https://fhir.centraxx.de/system/sprec/secondProcessing",
+                  "code": "KZGT_N",
+                  "display": "Keine Zentrifugation (N)"
+                }
+              }
+            ]
+          },
+          {
+            "url": "https://fhir.centraxx.de/extension/sample/repositionDate",
+            "valueDateTime": "2023-06-15T14:21:10+02:00"
+          },
+          {
+            "url": "https://fhir.centraxx.de/extension/sample/derivalDate",
+            "valueDateTime": "2023-06-15T14:10:19+02:00"
+          },
+          {
+            "url": "https://fhir.centraxx.de/extension/sample/sampleLocation",
+            "extension": [
+              {
+                "url": "https://fhir.centraxx.de/extension/sample/sampleLocationPath",
+                "valueString": "ICBL --> Arbeitsplatz ICBL"
+              },
+              {
+                "url": "https://fhir.centraxx.de/extension/sample/xPosition",
+                "valueInteger": 0
+              },
+              {
+                "url": "https://fhir.centraxx.de/extension/sample/yPosition",
+                "valueInteger": 0
+              }
+            ]
+          }
+        ],
+        "identifier": [
+          {
+            "type": {
+              "coding": [
+                {
+                  "system": "https://fhir.centraxx.de/system/idContainerType",
+                  "code": "SAMPLEID",
+                  "display": "Proben ID"
+                }
+              ]
+            },
+            "value": "102394-1"
+          }
+        ],
+        "type": {
+          "coding": [
+            {
+              "system": "https://fhir.centraxx.de/system/sample/sampleType",
+              "code": "ST_F_SER_SERUM",
+              "display": "Serum (SER)"
+            },
+            {
+              "system": "https://doi.org/10.1089/bio.2017.0109",
+              "code": "SER",
+              "display": "Serum (SER)"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "Patient/157509"
+        },
+        "receivedTime": "2023-06-05T10:58:03+02:00",
+        "parent": [
+          {
+            "reference": "Specimen/104751"
+          }
+        ],
+        "collection": {
+          "collectedDateTime": "2023-06-05",
+          "quantity": {
+            "value": 500.0000,
+            "unit": "MICL"
+          }
+        },
+        "processing": [
+          {
+            "procedure": {
+              "coding": [
+                {
+                  "system": "urn:centraxx",
+                  "code": "410min1500g",
+                  "display": "4 °C 10 min 1500g mit Bremse"
+                },
+                {
+                  "system": "https://doi.org/10.1089/bio.2017.0109",
+                  "code": "D",
+                  "display": "2 °C bis 10 °C 10 - 15 min < 3000 g mit Bremse (D)"
+                }
+              ]
+            }
+          }
+        ],
+        "container": [
+          {
+            "identifier": [
+              {
+                "system": "https://fhir.centraxx.de/system/sample/sampleReceptacle",
+                "value": "CYT05MJA"
+              }
+            ],
+            "description": "0,5mL Cryotube FluidX",
+            "specimenQuantity": {
+              "value": 500.0000,
+              "unit": "MICL"
+            }
+          }
+        ]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Specimen/104752"
+      }
+    }
+  ]
+}

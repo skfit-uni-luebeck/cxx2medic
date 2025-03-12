@@ -1,0 +1,32 @@
+services:
+  database:
+    container_name: cxx2medic-test_database
+    image: mcr.microsoft.com/mssql/server:2022-preview-ubuntu-22.04
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "supersecretpassword1#"
+      MSSQL_PID: "Developer"
+    ports:
+      - "8433:1433"
+  fhir-server:
+    container_name: cxx2medic-test_fhir-server
+    image: samply/blaze:0.33.0
+    environment:
+      ENFORCE_REFERENTIAL_INTEGRITY: false
+    ports:
+      - "8080:8080"
+    volumes:
+      - "cxx2medic-test_fhir-server-data:/app/data"
+  object-store:
+    container_name: cxx2medic-test_object-store
+    image: quay.io/minio/minio:RELEASE.2025-02-28T09-55-16Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: "minio"
+      MINIO_ROOT_PASSWORD: "supersecretpassword"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+
+volumes:
+  cxx2medic-test_fhir-server-data:

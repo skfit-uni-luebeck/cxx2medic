@@ -37,7 +37,6 @@ import org.springframework.messaging.MessageHeaders
 import org.springframework.messaging.support.MessageBuilder
 import org.springframework.scheduling.support.CronTrigger
 import java.math.BigDecimal
-import java.time.Duration
 import java.time.Instant
 import java.util.*
 
@@ -47,11 +46,21 @@ private val logger: Logger = LogManager.getLogger(CXX2S3Job::class.java)
 @EnableIntegration
 class CXX2S3Job(
     @Autowired private val s3Service: S3StorageService,
+    @Autowired cxxSettings: CentraXXSettings,
     @Autowired fhirQuery: FhirQuery
 )
 {
     init
     {
+        when (val expr = cxxSettings.patientReferenceIdentifier) {
+            null -> logger.warn("No config entry 'cxx.patientReferenceIdentifier' is present in application settings " +
+                    "file. It is used to extract an identifier from the associated Patient instance to use as a " +
+                    "subject reference in the Specimen instance. If it is not provided no such reference will be " +
+                    "present. Ignore this message only if you are able to link the data in some other way")
+            else -> logger.info("Patient reference will be generated using identifier locatable via FHIRPath " +
+                    "expression '$expr'")
+        }
+
         if ("Consent" !in fhirQuery.getInvolvedFhirTypes()) {
             logger.warn("Since no criterion targets the FHIR Consent resource type its presence will not be a " +
                     "requirement for the export of a specimen")
@@ -80,10 +89,10 @@ class CXX2S3Job(
             val patientId = row["patient_id"]
             val consentId = row["consent_id"]
             if (specimenId == null) {
-                logger.warn("Missing specimen ID [patientId=${patientId}, consentId=${consentId}]")
+                logger.warn("Missing specimen ID [patientId=${patientId}, consentId=${consentId}] => Discarding")
                 "nullChannel"
             } else if (patientId == null) {
-                logger.info("Missing patient ID [specimenId=${specimenId}] => Excluding")
+                logger.info("Missing patient ID [specimenId=${specimenId}] => Deleting")
                 "mark-for-deletion"
             } else if (consentId == null) {
                 logger.debug("Missing consent ID [specimenId=${specimenId}]")
@@ -172,7 +181,7 @@ class CXX2S3Job(
                     when (it.value) {
                         is None -> {
                             if (it.key in involvedFhirTypes) {
-                                logger.warn("Missing ${it.key} resource required for evaluation => Excluding")
+                                logger.warn("Missing ${it.key} resource required for evaluation => Deleting")
                                 return@runCatching deleteChannel
                             }
                             false
@@ -184,14 +193,14 @@ class CXX2S3Job(
                 else deleteChannel
             }.getOrElse { exc ->
                 when (exc) {
-                    is NoSuchElementException -> logger.warn("${exc.message} => Excluding")
+                    is NoSuchElementException -> logger.warn("${exc.message} => Deleting")
                     else -> logger.warn("Failed to evaluate criteria [id=${m.headers["specimenId"]!!}] " +
-                            "=> Excluding", exc)
+                            "=> Deleting", exc)
                 }
                 deleteChannel
             }
-            logger.info("Evaluated Specimen [id=${m.headers["specimenId"]!!}]: ${if (channel == keepChannel) "keep" 
-            else "delete"}")
+            logger.info("Evaluated Specimen [id=${m.headers["specimenId"]!!}] => "  +
+                    if (channel == keepChannel) "Keeping" else "Deleting")
             channel
         }
     }
@@ -199,34 +208,37 @@ class CXX2S3Job(
     @Bean
     fun enrichSpecimen(
         @Autowired cxxSettings: CentraXXSettings,
-        @Autowired identifierPattern: Pattern<Identifier>
+        @Autowired evalService: FhirPathEvaluationServiceR4
     ) = integrationFlow("filtered-fhir-data") {
-        transform<Map<String, Option<IBaseResource>>> { m ->
+        transform<Message<Map<String, Option<IBaseResource>>>> { msg ->
             // Due to the previous step the values cannot be null or None so they can be unpacked safely
-            val specimen = m["Specimen"]!!.getOrNull()!!
-            val oConsent = m["Consent"]!!
-            val patient = m["Patient"]!!.getOrNull()!!
-            Triple(specimen, oConsent, patient)
-        }
-        filter<Message<Triple<Specimen, Option<Consent>, Patient>>> { msg ->
-            val (_, _, patient) = msg.payload
-            val result = patient.identifier.any { identifierPattern.evaluate(it) }
-            if (!result) logger.debug("Patient resource has no identifier with configured type code " +
-                    "[id=${patient.idPart}] => Excluding")
-            result
-        }
-        transform<Message<Triple<Specimen, Option<Consent>, Patient>>> { msg ->
-            val (specimen, oConsent, patient) = msg.payload
+            val m = msg.payload
+            val specimen = m["Specimen"]!!.getOrNull()!! as Specimen
+            @Suppress("UNCHECKED_CAST")
+            val oConsent = m["Consent"]!! as Option<Consent>
+            val patient = m["Patient"]!!.getOrNull()!! as Patient
             // FIXME: Add proper request type adjustment based on current request type similar to criteria definition
             //        and evaluation
-            // If there is no material remains emit a DELETE action
             val requestType = msg.headers["request"] as HTTPVerb
 
             logger.info("Processing Specimen resource [id=${specimen.idPart}, requestType=$requestType]")
 
-            specimen.subject.apply {
-                identifier = patient.identifier.filter { identifierPattern.evaluate(it) }[0]
-                type = "Patient"
+            if (cxxSettings.patientReferenceIdentifier != null) {
+                evalService.retrieve<Identifier>(patient, cxxSettings.patientReferenceIdentifier).fold(
+                    { ids -> when (ids.size) {
+                        0 -> logger.warn("No suitable patient identifier could be found " +
+                                "[patientId=${patient.idPart}]. No reference will be present")
+                        else -> {
+                            if (ids.size > 1) logger.warn("More than one patient identifier matches " +
+                                    "[patientId=${patient.idPart}]. Using first match")
+                            specimen.setSubject(Reference().apply {
+                                identifier = ids[0]
+                                type = "Patient"
+                            })
+                        }
+                    } },
+                    { exc -> logger.warn("Failed to retrieve patient identifier [patientId=${patient.idPart}]", exc) }
+                )
             }
 
             specimen.extension.add(Extension().apply {
@@ -292,9 +304,9 @@ class CXX2S3Job(
     fun aggregateSpecimenToBundles(
         @Autowired bundleSizeLimit: Int
     ) = integrationFlow("specimen-fhir-data") {
-        resequence {
-            correlationStrategy(HeaderAttributeCorrelationStrategy(IntegrationMessageHeaderAccessor.CORRELATION_ID))
-        }
+        //resequence {
+        //    correlationStrategy(HeaderAttributeCorrelationStrategy(IntegrationMessageHeaderAccessor.CORRELATION_ID))
+        //}
         aggregate {
             expireGroupsUponCompletion(true)
             releaseStrategy(SequenceAwareMessageCountReleaseStrategy(bundleSizeLimit))
@@ -336,20 +348,4 @@ class CXX2S3Job(
             subscribe(S3StorageWriterHandler(s3Service))
         })
     }
-
-    @Bean(name = ["identifierPattern"])
-    fun identifierPattern(@Autowired cxxSettings: CentraXXSettings): Pattern<Identifier> =
-        pattern {
-            anyOf({ type.coding }) {
-                check { system == "https://fhir.centraxx.de/system/idContainerType" }
-                check { code == cxxSettings.patientIdentifierTypeCode }
-            }
-        }
-
-    private val specimenIsNotEmpty: Pattern<Specimen> =
-        pattern {
-            anyOf({ container }) {
-                check { specimenQuantity.value > BigDecimal.ZERO }
-            }
-        }
 }

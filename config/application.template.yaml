@@ -6,6 +6,8 @@ cxx:
     name: "<db-name>"
     username: "<username>"
     password: "<password>"
+#    parameters:
+#      <parameter-name>: <parameter-value>
   fhir:
     url: "[http|https]://<base-url>/fhir"
     authorization:
@@ -19,7 +21,7 @@ cxx:
 #        clientSecret: "<client-secret>"
   criteriaFile: "/path/to/criteria/file"
   managingOrg: "<system-uri>|<org-id-value>"
-  patientIdentifierTypeCode: "<type-code>"
+  patientReferenceIdentifier: "Patient.identifier.where(<identifier-criteria>).first()"
 
 schedule:
   cron: "<sec-expr> <min-expr> <hour-expr> <day-expr> <mon-expr> <dow-expr>"

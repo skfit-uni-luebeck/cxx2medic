@@ -11,8 +11,24 @@ data class DatabaseSettings(
     val name: String,
     val username: String,
     val password: String,
-    val truststore: Option<TruststoreSettings> = None
-)
+    val truststore: Option<TruststoreSettings> = None,
+    val parameters: Map<String, String> = emptyMap()
+) {
+    val connectionUrl: String by lazy { when(type) {
+        DatabaseType.SQLSERVER -> {
+            "jdbc:${type.protocol}://$host:$port;databaseName=$name" +
+                    if (parameters.isNotEmpty())
+                        ";" + parameters.map { e -> "${e.key}=${e.value}" }.joinToString(";")
+                    else ""
+        }
+        DatabaseType.POSTGRESQL -> {
+            "jdbc:${type.protocol}://$host:$port/$name" +
+                    if (parameters.isNotEmpty())
+                        "?" + parameters.map { e -> "${e.key}=${e.value}" }.joinToString("&")
+                    else ""
+        }
+    } }
+}
 
 enum class DatabaseType(
     val protocol: String,
@@ -22,6 +38,3 @@ enum class DatabaseType(
     SQLSERVER("sqlserver", "com.microsoft.sqlserver.jdbc.SQLServerDriver"),
     POSTGRESQL("postgresql", "org.postgresql.Driver");
 }
-
-fun getProtocolPart(type: DatabaseType): String =
-    type.protocol
