@@ -6,7 +6,7 @@ on:
       - '*'
 
 jobs:
-  build-test-publish-for-release:
+  build-publish-jar:
     runs-on: ubuntu-latest
     permissions:
       contents: read
