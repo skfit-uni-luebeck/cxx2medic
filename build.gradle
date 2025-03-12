@@ -9,7 +9,7 @@ plugins {
 }
 
 group = 'de.uksh.medic'
-version = '0.0.2'
+version = '0.1.0'
 
 dependencies {
     implementation 'org.jetbrains.kotlinx:kotlinx-cli-jvm:0.3.6'
