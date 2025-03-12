@@ -22,8 +22,14 @@ jobs:
       shell: bash
       run: ./gradlew clean build -x test
 
-    - name: Publish JAR
-      uses: actions/upload-artifact@v4
+    - name: Rename JAR
+      shell: bash
+      run: mv build/libs/cxx2medic.jar build/libs/cxx2medic-${{ github.ref_name }}.jar
+
+    - name: Release JAR
+      uses: softprops/action-gh-release@v2
       with:
-        name: cxx2medic-${{ github.ref_name }}.jar
-        path: build/libs/cxx2medic.jar
+        draft: true
+        generate_release_notes: true
+        files:
+          build/libs/cxx2medic-${{ github.ref_name }}.jar
