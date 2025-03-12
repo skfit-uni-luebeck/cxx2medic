@@ -9,7 +9,7 @@ jobs:
   build-publish-jar:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
     steps:
     - name: Checkout
@@ -28,8 +28,6 @@ jobs:
 
     - name: Release JAR
       uses: softprops/action-gh-release@v2
-      permissions:
-        contents: write
       with:
         draft: true
         generate_release_notes: true
