@@ -18,12 +18,12 @@ jobs:
     - name: Setup prerequisites
       uses: ./.github/actions/setup
 
-    - name: Build project
-      continue-on-error: false
-      uses: ./.github/actions/build-project
+    - name: Build project with Gradle
+      shell: bash
+      run: ./gradlew clean build -x test
 
     - name: Publish JAR
       uses: actions/upload-artifact@v4
       with:
         name: cxx2medic-${{ github.ref_name }}.jar
-        path: ${{ github.workspace }}/build/libs/cxx2medic.jar
+        path: build/libs/cxx2medic.jar
