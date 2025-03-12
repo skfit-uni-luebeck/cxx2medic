@@ -1,0 +1,35 @@
+name: setup-gradle
+
+description: 'Sets up Gradle and can additional task beforehand as indicated by the input parameters'
+
+inputs:
+  setup_jdk:
+    required: true
+    description: 'Whether a JDK needs to be installed before running Gradle'
+    default: 'true'
+  java_version:
+    required: true
+    description: 'Java version of JDK to install. Checkout actions/setup-java@v4:with.java-version'
+    default: '17'
+  java_distribution:
+    required: true
+    description: 'JDK distribution to install. Checkout actions/setup-java@v4:with.distribution'
+    default: 'temurin'
+  java_architecture:
+    required: true
+    description: 'Architecture to the JDK has to support. Checkout actions/setup-java@v4:with.architecture'
+    default: x64
+
+runs:
+  using: composite
+  steps:
+    - name: Set up JDK
+      if: ${{ inputs.setup_jdk == 'true' }}
+      uses: actions/setup-java@v4
+      with:
+        java-version: '${{ inputs.java_version }}'
+        distribution: '${{ inputs.java_distribution }}'
+        architecture: ${{ inputs.java_architecture }}
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@af1da67850ed9a4cedd57bfd976089dd991e2582 # v4.0.0
