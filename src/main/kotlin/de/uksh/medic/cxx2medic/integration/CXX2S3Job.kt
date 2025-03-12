@@ -5,8 +5,6 @@ import arrow.core.Option
 import arrow.core.Some
 import ca.uhn.fhir.context.FhirContext
 import de.uksh.medic.cxx2medic.config.CentraXXSettings
-import de.uksh.medic.cxx2medic.evaluation.Pattern
-import de.uksh.medic.cxx2medic.evaluation.pattern
 import de.uksh.medic.cxx2medic.exception.UnknownChangeTypeException
 import de.uksh.medic.cxx2medic.fhir.query.FhirQuery
 import de.uksh.medic.cxx2medic.integration.aggregator.strategy.SequenceAwareMessageCountReleaseStrategy
@@ -16,12 +14,14 @@ import de.uksh.medic.cxx2medic.integration.service.CentraXXFhirService
 import de.uksh.medic.cxx2medic.integration.service.FhirPathEvaluationServiceR4
 import de.uksh.medic.cxx2medic.integration.service.S3StorageService
 import de.uksh.medic.cxx2medic.util.Identifiers
+import de.uksh.medic.cxx2medic.util.dataIsAbsentBecause
 import org.apache.logging.log4j.LogManager
 import org.apache.logging.log4j.Logger
 import org.hl7.fhir.instance.model.api.IBaseResource
 import org.hl7.fhir.r4.model.*
 import org.hl7.fhir.r4.model.Bundle.BundleEntryComponent
 import org.hl7.fhir.r4.model.Bundle.HTTPVerb
+import org.hl7.fhir.r4.model.Enumerations.DataAbsentReason
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.context.annotation.Bean
@@ -226,8 +226,13 @@ class CXX2S3Job(
             if (cxxSettings.patientReferenceIdentifier != null) {
                 evalService.retrieve<Identifier>(patient, cxxSettings.patientReferenceIdentifier).fold(
                     { ids -> when (ids.size) {
-                        0 -> logger.warn("No suitable patient identifier could be found " +
-                                "[patientId=${patient.idPart}]. No reference will be present")
+                        0 -> {
+                            logger.warn("No suitable patient identifier could be found [patientId=${patient.idPart}]. " +
+                                    "No reference will be present")
+                            specimen.setSubject(
+                                Reference().apply { type = "Patient" } dataIsAbsentBecause DataAbsentReason.NOTAPPLICABLE
+                            )
+                        }
                         else -> {
                             if (ids.size > 1) logger.warn("More than one patient identifier matches " +
                                     "[patientId=${patient.idPart}]. Using first match")
@@ -237,7 +242,12 @@ class CXX2S3Job(
                             })
                         }
                     } },
-                    { exc -> logger.warn("Failed to retrieve patient identifier [patientId=${patient.idPart}]", exc) }
+                    { exc ->
+                        logger.warn("Failed to retrieve patient identifier [patientId=${patient.idPart}]", exc)
+                        specimen.setSubject(
+                            Reference().apply { type = "Patient" } dataIsAbsentBecause DataAbsentReason.ERROR
+                        )
+                    }
                 )
             }
 
