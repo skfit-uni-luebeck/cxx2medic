@@ -1,0 +1,29 @@
+name: Publish Release
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  build-test-publish-for-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup prerequisites
+      uses: ./.github/actions/setup
+
+    - name: Build project
+      continue-on-error: false
+      uses: ./.github/actions/build-project
+
+    - name: Publish JAR
+      uses: actions/upload-artifact@v4
+      with:
+        name: cxx2medic-${{ github.ref_name }}.jar
+        path: build/libs/cxx2medic-${{ github.ref_name }}.jar
