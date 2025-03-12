@@ -34,6 +34,9 @@ class FhirPathEvaluationServiceR4(
         return evaluate(actualQuery.criteria, typeMap)
     }
 
+    fun <T> retrieve(resource: Base, expr: String): Result<List<T>> =
+        kotlin.runCatching { engine.evaluate(resource, expr) }.map { it as List<T> }
+
     private fun evaluate(clause: FhirQuery.AndClause, map: Map<String, Base>): Boolean =
         clause.expressions.all { evaluate(it, map) } && clause.orClauses.all { evaluate(it, map) }
 

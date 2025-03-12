@@ -17,40 +17,39 @@ import javax.sql.DataSource
 @Configuration
 @EnableIntegration
 class CentraXXDataSourceConfiguration(
-    @Autowired @Qualifier("cxx:db-settings") settings: DatabaseSettings
+    @Autowired @Qualifier("cxx:db-settings") val settings: DatabaseSettings
 )
 {
-    private val driverClassName = settings.type.driverClassName
-    private val connectionUrl: String = when (val type = settings.type)
-        {
-            DatabaseType.POSTGRESQL ->
-                "jdbc:${settings.type.protocol}://${settings.host}:${settings.port}/${settings.name}"
-            DatabaseType.SQLSERVER ->
-                "jdbc:${settings.type.protocol}://${settings.host}:${settings.port};databaseName=${settings.name}"
-        }
-    private val username: String = settings.username
-    private val password: String = settings.password
     private val queryTemplateStr: String = """
-        WITH sample AS
+        WITH consent(consent_id, consent_patient_id, consent_change_kind, consent_change_date, consent_rn) AS
         (
-           SELECT *, ROW_NUMBER() OVER (PARTITION BY OID ORDER BY change_id DESC) AS rn
-           FROM centraxx_sample
-           WHERE change_date >= ? AND change_date < ? AND change_user != 'flyway'
+           SELECT OID, PATIENTCONTAINER, change_kind, change_date, ROW_NUMBER() OVER (PARTITION BY OID ORDER BY change_id DESC)
+           FROM CENTRAXX_CONSENT
+           WHERE change_user != 'flyway'
+        ),
+        sample(specimen_id, patient_id, sample_consent_id, sample_change_kind, sample_change_date, sample_rn) AS
+        (
+           SELECT OID, PATIENTCONTAINER, CONSENT, change_kind, change_date, ROW_NUMBER() OVER (PARTITION BY OID ORDER BY change_id DESC)
+           FROM CENTRAXX_SAMPLE
+           WHERE change_user != 'flyway' AND DTYPE != 'ALIQUOTGROUP'
         )
-        SELECT sample.OID AS specimen_id, sample.PATIENTCONTAINER AS patient_id, sample.CONSENT AS consent_id, sample.change_kind AS change_kind
-        FROM sample
-        WHERE rn = 1
-        ORDER BY patient_id, consent_id
+        SELECT specimen_id, patient_id,  sample_consent_id AS consent_id, IIF(consent_change_date>sample_change_date, consent_change_kind, sample_change_kind) AS change_kind
+        FROM sample LEFT JOIN consent ON sample_consent_id = consent_id
+        WHERE sample_rn = 1 AND (consent_rn = 1 OR consent_rn is NULL)
+        AND IIF(consent_change_date>sample_change_date, consent_change_date, sample_change_date) >= ?
+        AND IIF(consent_change_date>sample_change_date, consent_change_date, sample_change_date) < ?
+        ORDER BY patient_id, consent_id, specimen_id
     """.trimIndent()
 
     @Bean("cxx:db-source")
     fun dataSource(): DataSource =
         DriverManagerDataSource().apply {
-            setDriverClassName(driverClassName)
-            url = connectionUrl
-            username = this@CentraXXDataSourceConfiguration.username
-            password = this@CentraXXDataSourceConfiguration.password
-        }.also { logger.info("Initialized CentraXX database source [url=$connectionUrl, driver=$driverClassName]") }
+            setDriverClassName(settings.type.driverClassName)
+            url = settings.connectionUrl
+            username = settings.username
+            password = settings.password
+        }.also { logger.info("Initialized CentraXX database source [url=${settings.connectionUrl}, " +
+                "driver=${settings.type.driverClassName}]") }
 
     @Bean("cxx:msg-source")
     fun messageSource(
