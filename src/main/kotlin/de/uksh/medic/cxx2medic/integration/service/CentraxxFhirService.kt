@@ -33,9 +33,6 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.cache.annotation.Cacheable
 import org.springframework.stereotype.Service
-import usr.paulolaup.fhir.client.interceptor.oauth.ClientCredentialsOAuthInterceptor
-import usr.paulolaup.fhir.client.interceptor.oauth.PasswordOAuthInterceptor
-import usr.paulolaup.fhir.client.interceptor.oauth.RefreshTokenOAuthInterceptor
 import java.util.concurrent.TimeUnit
 import kotlin.reflect.full.companionObject
 
@@ -50,23 +47,11 @@ class CentraXXFhirService(
 
     init
     {
-        // Activate OAuth authorization if settings reflect its presence
         settings.authorization.onSome {
             it.basic.fold (
                 { it.oauth.fold(
                     { throw AuthenticationException("No Authentication data provided in authentication config") },
-                    { oauth ->
-                        client.registerInterceptor(when (val credentials = oauth.getCredentials()) {
-                            is OAuthClientCredentials ->
-                                ClientCredentialsOAuthInterceptor(oauth.accessTokenUrl, credentials.clientCredentials)
-                            is OAuthRefreshTokenCredentials ->
-                                RefreshTokenOAuthInterceptor(oauth.accessTokenUrl, credentials.clientCredentials)
-                            is OAuthPasswordCredentials ->
-                                PasswordOAuthInterceptor(
-                                    oauth.accessTokenUrl, credentials.clientCredentials, credentials.usernameAndPassword
-                                )
-                        })
-                    }
+                    { throw NotImplementedError("OAuth authentication is currently not supported") }
                 ) },
                 { basic -> client.registerInterceptor(BasicAuthInterceptor(basic.userName, basic.password)) }
             )
