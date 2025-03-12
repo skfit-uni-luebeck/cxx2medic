@@ -9,7 +9,7 @@ plugins {
 }
 
 group = 'de.uksh.medic'
-version = '0.1.0'
+version = '0.1.1'
 
 dependencies {
     implementation 'org.jetbrains.kotlinx:kotlinx-cli-jvm:0.3.6'
@@ -58,8 +58,8 @@ dependencies {
     ksp 'io.arrow-kt:arrow-optics-ksp-plugin:1.2.4'
 
     // Client
-    implementation 'com.squareup.okhttp3:okhttp:5.0.0-alpha.14'
-    implementation 'usr.paulolaup:hapifhir-oauth-client:0.0.3-experimental'
+    //implementation 'com.squareup.okhttp3:okhttp:5.0.0-alpha.14'
+    //implementation 'usr.paulolaup:hapifhir-oauth-client:0.0.3-experimental'
 }
 
 java {
