@@ -10,11 +10,12 @@ import com.fasterxml.jackson.databind.deser.std.StdDeserializer
 import com.fasterxml.jackson.databind.node.ArrayNode
 import de.uksh.medic.cxx2medic.util.replaceAll
 import de.uksh.medic.cxx2medic.util.getResourceTypeR4
+import org.aspectj.weaver.ast.And
 
 data class FhirQuery(
-    val description: String?,
-    val constants: Map<String, String>,
-    val variables: Map<String, String>,
+    val description: String? = "",
+    val constants: Map<String, String> = emptyMap(),
+    val variables: Map<String, String> = emptyMap(),
     val criteria: AndClause
 )
 {
@@ -69,6 +70,16 @@ data class FhirQuery(
                 fromArrayNode(parser.codec.readTree(parser))
         }
 
+        fun filter(f: (String) -> Boolean): AndClause = AndClause(
+            this.orClauses.map { it.filter(f) }.filter { !it.isEmpty() },
+            this.expressions.filter(f)
+        )
+
+        fun replace(f: (String) -> Boolean, replacement: String): AndClause = AndClause(
+            this.orClauses.map { it.replace(f, replacement) },
+            this.expressions.map { if (f(it)) replacement else it }
+        )
+
         companion object
         {
             fun fromArrayNode(node: ArrayNode): AndClause
@@ -101,6 +112,16 @@ data class FhirQuery(
 
         fun isEmpty() =
             this.expressions.isEmpty() && this.andClauses.isEmpty()
+
+        fun filter(f: (String) -> Boolean): OrClause = OrClause(
+            this.andClauses.map { it.filter(f) }.filter { !it.isEmpty() },
+            this.expressions.filter(f)
+        )
+
+        fun replace(f: (String) -> Boolean, replacement: String): OrClause = OrClause(
+            this.andClauses.map { it.replace(f, replacement) },
+            this.expressions.map { if (f(it)) replacement else it }
+        )
 
         companion object
         {
