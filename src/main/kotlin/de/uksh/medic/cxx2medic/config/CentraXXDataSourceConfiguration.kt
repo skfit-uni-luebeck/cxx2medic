@@ -31,7 +31,7 @@ class CentraXXDataSourceConfiguration(
         (
            SELECT OID, PATIENTCONTAINER, CONSENT, change_kind, change_date, ROW_NUMBER() OVER (PARTITION BY OID ORDER BY change_id DESC)
            FROM CENTRAXX_SAMPLE
-           WHERE change_user != 'flyway' AND DTYPE != 'ALIQUOTGROUP'
+           WHERE change_user != 'flyway' AND DTYPE != 'ALIQUOTGROUP' AND ENTITYTYPE IS NULL
         )
         SELECT specimen_id, patient_id,  sample_consent_id AS consent_id, IIF(consent_change_date>sample_change_date, consent_change_kind, sample_change_kind) AS change_kind
         FROM sample LEFT JOIN consent ON sample_consent_id = consent_id
