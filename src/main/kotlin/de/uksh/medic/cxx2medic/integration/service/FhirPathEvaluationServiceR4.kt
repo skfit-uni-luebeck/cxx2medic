@@ -50,8 +50,11 @@ class FhirPathEvaluationServiceR4(
         return evaluate(actualQuery.criteria, coll)
     }
 
-    fun <T> retrieve(resource: Base, expr: String): Result<List<T>> =
-        kotlin.runCatching { engine.evaluate(resource, expr) }.map { it as List<T> }
+    fun <T> retrieve(resource: Base?, expr: String): Result<List<T>> =
+        kotlin.runCatching {
+            if (resource == null) throw IllegalArgumentException("Cannot evaluate expression since provided resource is null")
+            else engine.evaluate(resource, expr)
+        }.map { it as List<T> }
 
     private fun evaluate(clause: FhirQuery.AndClause, coll: Bundle): Boolean =
         clause.expressions.all { evaluate(it, coll) } && clause.orClauses.all { evaluate(it, coll) }
