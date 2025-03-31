@@ -204,7 +204,8 @@ class CXX2S3Job(
             val specimen = resources.find { it is Specimen }!! as Specimen
             @Suppress("UNCHECKED_CAST")
             val oConsent = resources.find { it is Consent }?.some() ?: None as Option<Consent>
-            val patient = resources.find { it is Patient }!! as Patient
+            val oPatient = resources.find { it is Patient }?.some() ?: None as Option<Patient>
+            val patientId = oPatient.fold({ msg.headers["patientId"] }, { it.idPart })
             // FIXME: Add proper request type adjustment based on current request type similar to criteria definition
             //        and evaluation
             val requestType = msg.headers["request"] as HTTPVerb
@@ -212,10 +213,11 @@ class CXX2S3Job(
             logger.info("Processing Specimen resource [id=${specimen.idPart}, requestType=$requestType]")
 
             if (cxxSettings.patientReferenceIdentifier != null) {
+                val patient = oPatient.getOrNull()
                 evalService.retrieve<Identifier>(patient, cxxSettings.patientReferenceIdentifier).fold(
                     { ids -> when (ids.size) {
                         0 -> {
-                            logger.warn("No suitable patient identifier could be found [patientId=${patient.idPart}]. " +
+                            logger.warn("No suitable patient identifier could be found [patientId=${patientId}]. " +
                                     "No reference will be present")
                             specimen.setSubject(
                                 Reference().apply { type = "Patient" } dataIsAbsentBecause DataAbsentReason.NOTAPPLICABLE
@@ -223,7 +225,7 @@ class CXX2S3Job(
                         }
                         else -> {
                             if (ids.size > 1) logger.warn("More than one patient identifier matches " +
-                                    "[patientId=${patient.idPart}]. Using first match")
+                                    "[patientId=${patientId}]. Using first match")
                             specimen.setSubject(Reference().apply {
                                 identifier = ids[0]
                                 type = "Patient"
@@ -231,10 +233,24 @@ class CXX2S3Job(
                         }
                     } },
                     { exc ->
-                        logger.warn("Failed to retrieve patient identifier [patientId=${patient.idPart}]", exc)
-                        specimen.setSubject(
-                            Reference().apply { type = "Patient" } dataIsAbsentBecause DataAbsentReason.ERROR
-                        )
+                        when (exc) {
+                            is IllegalArgumentException -> {
+                                logger.warn(
+                                    "Failed to retrieve patient identifier [patientId=${patientId}]. Reason: ${exc.message}"
+                                )
+                                specimen.setSubject(
+                                    Reference().apply { type = "Patient" } dataIsAbsentBecause DataAbsentReason.UNKNOWN
+                                )
+                            }
+                            else -> {
+                                logger.warn(
+                                    "Failed to retrieve patient identifier [patientId=${patientId}]", exc
+                                )
+                                specimen.setSubject(
+                                    Reference().apply { type = "Patient" } dataIsAbsentBecause DataAbsentReason.ERROR
+                                )
+                            }
+                        }
                     }
                 )
             }
