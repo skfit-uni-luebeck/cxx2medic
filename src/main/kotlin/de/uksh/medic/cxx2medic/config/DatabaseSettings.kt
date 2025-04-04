@@ -12,7 +12,8 @@ data class DatabaseSettings(
     val username: String,
     val password: String,
     val truststore: Option<TruststoreSettings> = None,
-    val parameters: Map<String, String> = emptyMap()
+    val parameters: Map<String, String> = emptyMap(),
+    val resilience: ResilienceSettings = ResilienceSettings()
 ) {
     val connectionUrl: String by lazy { when(type) {
         DatabaseType.SQLSERVER -> {

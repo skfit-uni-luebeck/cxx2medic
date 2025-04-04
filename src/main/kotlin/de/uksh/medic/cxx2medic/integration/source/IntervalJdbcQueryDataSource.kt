@@ -1,6 +1,11 @@
 package de.uksh.medic.cxx2medic.integration.source
 
+import arrow.core.Either
+import arrow.resilience.Schedule
+import arrow.resilience.retryEither
 import de.uksh.medic.cxx2medic.integration.scheduling.IntervalProvider
+import de.uksh.medic.cxx2medic.integration.status.RunStatus
+import kotlinx.coroutines.runBlocking
 import org.apache.logging.log4j.LogManager
 import org.apache.logging.log4j.Logger
 import org.springframework.integration.core.MessageSource
@@ -19,7 +24,8 @@ import javax.sql.DataSource
 class IntervalJdbcQueryDataSource(
     queryTemplate: String,
     dataSource: DataSource,
-    private val intervalProvider: IntervalProvider
+    private val intervalProvider: IntervalProvider,
+    private val retrySchedule: Schedule<Throwable, Any>
 ): MessageSource<List<Map<String, String?>>>
 {
     private val template: JdbcTemplate = JdbcTemplate().apply { this.dataSource = dataSource }
@@ -49,8 +55,18 @@ class IntervalJdbcQueryDataSource(
     {
         val (start, end) = intervalProvider.getInterval().run { start to end }
         logger.info("Querying database for updated records within [{}, {})", start, end)
-        val payload = template.query(psc, pss, rse)
-        return if (payload != null) MessageBuilder.withPayload(payload).build() else null
+        val payload = runBlocking {
+            retrySchedule.log { t, _ -> logger.warn("Retrying database query. Reason: $t") }
+                .retryEither { Either.catch { template.query(psc, pss, rse) } }
+        }.fold(
+            { t ->
+                logger.error("Failed to load data from database source. No records will be processed", t)
+                RunStatus.completedSuccessfully = false
+                emptyList()
+            },
+            { it }
+        )
+        return MessageBuilder.withPayload(payload).build()
     }
 
     companion object

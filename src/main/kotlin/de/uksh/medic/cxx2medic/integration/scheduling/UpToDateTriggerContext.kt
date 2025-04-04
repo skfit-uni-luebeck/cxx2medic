@@ -50,7 +50,7 @@ class UpToDateTriggerContext(
     }
 
     override fun getInterval(): TimeInterval =
-        TimeInterval(this.lastCompletion ?: Instant.ofEpochSecond(0), this.currentExecution)
+        TimeInterval(this.lastActualExecution ?: Instant.ofEpochSecond(0), this.currentExecution)
 
     companion object
     {

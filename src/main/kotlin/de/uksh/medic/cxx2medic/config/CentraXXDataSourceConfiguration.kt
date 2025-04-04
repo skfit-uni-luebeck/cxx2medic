@@ -1,7 +1,6 @@
 package de.uksh.medic.cxx2medic.config
 
 import de.uksh.medic.cxx2medic.integration.scheduling.UpToDateTriggerContext
-import de.uksh.medic.cxx2medic.integration.service.RecoveryPersistenceService
 import de.uksh.medic.cxx2medic.integration.source.IntervalJdbcQueryDataSource
 import org.apache.logging.log4j.LogManager
 import org.apache.logging.log4j.Logger
@@ -11,7 +10,9 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.integration.config.EnableIntegration
 import org.springframework.integration.core.MessageSource
+import org.springframework.jdbc.CannotGetJdbcConnectionException
 import org.springframework.jdbc.datasource.DriverManagerDataSource
+import java.net.ConnectException
 import javax.sql.DataSource
 
 @Configuration
@@ -56,8 +57,10 @@ class CentraXXDataSourceConfiguration(
         @Autowired @Qualifier("cxx:db-source") dataSource: DataSource,
         @Autowired @Qualifier("global:trigger-ctx") triggerContext: UpToDateTriggerContext
     ): MessageSource<List<Map<String, String?>>> =
-        IntervalJdbcQueryDataSource(queryTemplateStr, dataSource, triggerContext)
-            .also { logger.info("Initialized CentraXX database message source") }
+        IntervalJdbcQueryDataSource(
+            queryTemplateStr, dataSource, triggerContext,
+            settings.resilience.retry.schedule(CannotGetJdbcConnectionException::class, ConnectException::class)
+        ).also { logger.info("Initialized CentraXX database message source") }
 
     companion object
     {

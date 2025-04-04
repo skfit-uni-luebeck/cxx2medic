@@ -7,7 +7,7 @@ import de.uksh.medic.cxx2medic.util.parseIdentifierToken
 import org.hl7.fhir.r4.model.Identifier
 import org.springframework.boot.context.properties.ConfigurationProperties
 
-@ConfigurationProperties(prefix = "cxx")
+@ConfigurationProperties(prefix = "cxx", ignoreInvalidFields = false, ignoreUnknownFields = false)
 class CentraXXSettings(
     val database: DatabaseSettings,
     val fhir: FhirSettings,
@@ -21,8 +21,10 @@ class CentraXXSettings(
 class FhirSettings(
     val url: String,
     authentication: AuthenticationSettings? = null,
-    authorization: AuthorizationSettings? = null
+    authorization: AuthorizationSettings? = null,
+    resilience: ResilienceSettings? = null
 ) {
     val authentication: Option<AuthenticationSettings> = if (authentication == null) None else Some(authentication)
     val authorization: Option<AuthorizationSettings> = if (authorization == null) None else Some(authorization)
+    val resilience: ResilienceSettings = resilience ?: ResilienceSettings()
 }

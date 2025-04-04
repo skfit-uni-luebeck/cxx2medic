@@ -3,8 +3,8 @@ package de.uksh.medic.cxx2medic.config
 import org.springframework.boot.context.properties.ConfigurationProperties
 import java.nio.file.Path
 
-@ConfigurationProperties("recovery", ignoreInvalidFields = false, ignoreUnknownFields = false)
-class RecoverySettings(
+@ConfigurationProperties("replay", ignoreInvalidFields = false, ignoreUnknownFields = false)
+class ReplaySettings(
     enabled: Boolean? = null,
     dataDir: String? = null
 ) {
