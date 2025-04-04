@@ -4,18 +4,24 @@ import arrow.core.None
 import arrow.core.Option
 import arrow.core.Some
 import arrow.core.some
+import arrow.resilience.Schedule
 import ca.uhn.fhir.context.FhirContext
 import de.uksh.medic.cxx2medic.config.CentraXXSettings
 import de.uksh.medic.cxx2medic.exception.UnknownChangeTypeException
 import de.uksh.medic.cxx2medic.fhir.query.FhirQuery
 import de.uksh.medic.cxx2medic.integration.aggregator.strategy.SequenceAwareMessageCountReleaseStrategy
+import de.uksh.medic.cxx2medic.integration.handler.ReplayingErrorHandler
 import de.uksh.medic.cxx2medic.integration.handler.S3StorageWriterHandler
 import de.uksh.medic.cxx2medic.integration.scheduling.UpToDateTriggerContext
 import de.uksh.medic.cxx2medic.integration.service.CentraXXFhirService
 import de.uksh.medic.cxx2medic.integration.service.FhirPathEvaluationServiceR4
 import de.uksh.medic.cxx2medic.integration.service.S3StorageService
+import de.uksh.medic.cxx2medic.integration.service.resilience.FileReplayService
+import de.uksh.medic.cxx2medic.integration.service.resilience.ReplayService
 import de.uksh.medic.cxx2medic.util.Identifiers
 import de.uksh.medic.cxx2medic.util.dataIsAbsentBecause
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.apache.logging.log4j.LogManager
 import org.apache.logging.log4j.Logger
 import org.hl7.fhir.instance.model.api.IBaseResource
@@ -31,14 +37,21 @@ import org.springframework.integration.IntegrationMessageHeaderAccessor
 import org.springframework.integration.aggregator.HeaderAttributeCorrelationStrategy
 import org.springframework.integration.channel.PublishSubscribeChannel
 import org.springframework.integration.config.EnableIntegration
+import org.springframework.integration.context.IntegrationContextUtils
 import org.springframework.integration.core.MessageSource
+import org.springframework.integration.dsl.BaseIntegrationFlowDefinition.ReplyProducerCleaner
 import org.springframework.integration.dsl.integrationFlow
 import org.springframework.messaging.Message
+import org.springframework.messaging.MessageChannel
 import org.springframework.messaging.MessageHeaders
+import org.springframework.messaging.support.ErrorMessage
 import org.springframework.messaging.support.MessageBuilder
 import org.springframework.scheduling.support.CronTrigger
+import reactor.core.scheduler.Schedulers
+import java.io.File
 import java.math.BigDecimal
 import java.time.Instant
+import java.time.LocalDateTime
 import java.util.*
 
 private val logger: Logger = LogManager.getLogger(CXX2S3Job::class.java)
@@ -72,18 +85,28 @@ class CXX2S3Job(
     fun readCentraxxDatabase(
         @Autowired @Qualifier("cxx:msg-source") source: MessageSource<List<Map<String, String?>>>,
         @Autowired @Qualifier("global:trigger") trigger: CronTrigger,
-        @Autowired  @Qualifier("global:trigger-ctx") triggerContext: UpToDateTriggerContext
+        @Autowired @Qualifier("global:trigger-ctx") triggerContext: UpToDateTriggerContext,
+        //@Autowired @Qualifier("replayService") replayService: ReplayService<FileReplayService.Entry>
     ) = integrationFlow(source, { poller { it.trigger(trigger) } }) {
         enrichHeaders {
             header("runTimestamp", triggerContext.currentExecution())
             header("runId", UUID.nameUUIDFromBytes(triggerContext.currentExecution().toString().encodeToByteArray()))
             //header("consentPattern", consentPattern(triggerContext.currentExecution()))
         }
+        /*transform<Message<List<Map<String, String?>>>> {
+            msg -> replayService.replay(msg) { list, entry ->
+            val specimenId = entry.data["specimenId"]
+            if (list.any { it["specimenId"] == specimenId }) {
+                logger.info("More recent update available for specimen '{}' => Skipping replay", specimenId)
+                list
+            } else list.toMutableList().apply { add(entry.data) }
+        } }*/
         split<List<Map<String, String?>>> { it }
         enrichHeaders {
             headerExpression("specimenId", "payload['specimen_id']")
             headerExpression("patientId", "payload['patient_id']")
             headerExpression("consentId", "payload['consent_id']")
+            //header(MessageHeaders.ERROR_CHANNEL, specimenErrorChannel)
         }
         route<Map<String, String?>> { row ->
             val specimenId = row["specimen_id"]
@@ -100,7 +123,6 @@ class CXX2S3Job(
                 "add-headers"
             } else "add-headers"
         }
-        //channel("add-headers")
     }
 
     @Bean
@@ -146,21 +168,22 @@ class CXX2S3Job(
     ) = integrationFlow("cxx-db-data-query-facade") {
         transform<Message<Map<String, String?>>> { msg: Message<Map<String, String?>> ->
             val bundle = Bundle().apply { type = Bundle.BundleType.COLLECTION }
-            msg.payload.forEach { key, value ->
-                if (value != null) fhirService.read(value, key).fold(
-                    {
-                        logger.debug(
-                            "Could not find {} instance with ID '{}' [specimenId={}]",
-                            key, value, msg.headers["specimenId"]
+            runBlocking {
+                msg.payload.forEach { key, value ->
+                    launch {
+                        if (value != null) fhirService.read(value, key).fold(
+                            { it.fold(
+                                {
+                                    logger.debug(
+                                        "Could not find {} instance with ID '{}' [specimenId={}]",
+                                        key, value, msg.headers["specimenId"]
+                                    )
+                                },
+                                { r -> bundle.addEntry().resource = r as Resource }
+                            ) },
+                            { t -> throw t }
                         )
-                    },
-                    { bundle.addEntry().resource = it as Resource }
-                )
-                else {
-                    logger.debug(
-                        "No ID to retrieve instance of type {} with [specimenId={}]",
-                        key, msg.headers["specimenId"]
-                    )
+                    }
                 }
             }
             return@transform bundle
@@ -313,12 +336,24 @@ class CXX2S3Job(
 
     @Bean
     fun aggregateSpecimenToBundles(
-        @Autowired bundleSizeLimit: Int
+        @Autowired bundleSizeLimit: Int,
+        //@Autowired bundleErrorChannel: MessageChannel
     ) = integrationFlow("specimen-fhir-data") {
         //resequence {
         //    correlationStrategy(HeaderAttributeCorrelationStrategy(IntegrationMessageHeaderAccessor.CORRELATION_ID))
         //}
         aggregate {
+            /*headersFunction { mg ->
+                val header = mg.messages.fold(mutableListOf<Map<String, String?>>()) { list, msg ->
+                    list.add(mapOf(
+                        "specimenId" to msg.headers["specimenId"] as String,
+                        "consentId" to msg.headers["consentId"] as String?,
+                        "patientId" to msg.headers["patientId"] as String?
+                    ))
+                    list
+                }
+                mapOf("originalIds" to header, MessageHeaders.ERROR_CHANNEL to bundleErrorChannel)
+            }*/
             expireGroupsUponCompletion(true)
             releaseStrategy(SequenceAwareMessageCountReleaseStrategy(bundleSizeLimit))
             correlationStrategy(HeaderAttributeCorrelationStrategy(IntegrationMessageHeaderAccessor.CORRELATION_ID))
@@ -344,6 +379,7 @@ class CXX2S3Job(
     fun encodeAndStore(
         @Autowired fhirContext: FhirContext,
         @Autowired bucketName: String,
+        //@Autowired s3Handler: S3StorageWriterHandler
     ) = integrationFlow("specimen-bundle-data") {
         transform<Bundle> {
             val content = fhirContext.newJsonParser().apply { setPrettyPrint(false) }.encodeResourceToString(it)
@@ -359,4 +395,49 @@ class CXX2S3Job(
             subscribe(S3StorageWriterHandler(s3Service))
         })
     }
+
+    /*
+    @Bean
+    fun s3Handler(): S3StorageWriterHandler = S3StorageWriterHandler(s3Service)
+
+    @Bean
+    fun handleErrors() = integrationFlow("errorChannel") {
+        route<ErrorMessage> { msg -> when (msg.headers.errorChannel) {
+
+        } }
+    }
+
+    @Bean
+    fun specimenErrorChannel(): MessageChannel = PublishSubscribeChannel()
+
+    @Bean
+    fun bundleErrorChannel(): MessageChannel = PublishSubscribeChannel()
+
+    @Bean
+    fun handleSpecimenProcessingErrors(
+        @Autowired replayService: ReplayService<FileReplayService.Entry>
+    ) = integrationFlow("specimenErrorChannel") {
+        handle(ReplayingErrorHandler(replayService) { errMsg ->
+            val msg = errMsg.originalMessage
+            val data = mapOf(
+                "specimenId" to msg.headers["specimenId"] as String?,
+                "consentId" to msg.headers["consentId"] as String?,
+                "patientId" to msg.headers["patientId"] as String?
+            )
+            listOf(FileReplayService.Entry(data, errMsg.payload.stackTraceToString(), LocalDateTime.now()))
+        })
+    }
+
+    @Bean
+    fun handleBundleProcessingErrors(
+        @Autowired replayService: ReplayService<FileReplayService.Entry>
+    ) = integrationFlow("bundleErrorChannel") {
+        handle(ReplayingErrorHandler(replayService) { errMsg ->
+            val msg = errMsg.originalMessage
+            (msg.headers["originalIds"] as List<Map<String, String?>>).map { FileReplayService.Entry(
+                it, errMsg.payload.stackTraceToString(), LocalDateTime.now()
+            ) }
+        })
+    }
+    */
 }

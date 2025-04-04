@@ -4,6 +4,7 @@ import de.uksh.medic.cxx2medic.exception.S3Exception
 import de.uksh.medic.cxx2medic.exception.UnsupportedValueException
 import de.uksh.medic.cxx2medic.integration.service.S3StorageService
 import de.uksh.medic.cxx2medic.util.isEqualTo
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.apache.http.entity.ContentType
@@ -52,8 +53,10 @@ class S3StorageWriterHandler(
                         "header 'contentType'. Expected one of $supportedContentTypes")
             }
         }
-        service.uploadFile(bucketName, objectName, stream, contentType)
-            .onFailure { e -> logger.error("Failed to store message in S3 storage", e) }
+        runBlocking {
+            service.uploadFile(bucketName, objectName, stream, contentType)
+                .onFailure { logger.error("Failed to store message in S3 storage", it); throw it }
+        }
     }
 
     companion object

@@ -9,7 +9,7 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-@ConfigurationProperties("schedule")
+@ConfigurationProperties("schedule", ignoreInvalidFields = false, ignoreUnknownFields = false)
 class ScheduleSettings(
     val cron: String = "0 * * * * *",
     catchupFrom: String? = null

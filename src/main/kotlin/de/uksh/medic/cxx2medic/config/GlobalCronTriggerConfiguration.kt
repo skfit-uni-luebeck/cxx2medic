@@ -1,15 +1,13 @@
 package de.uksh.medic.cxx2medic.config
 
-import arrow.core.None
-import arrow.core.Some
-import arrow.core.flatMap
+import arrow.core.*
 import de.uksh.medic.cxx2medic.integration.scheduling.UpToDateTriggerContext
 import de.uksh.medic.cxx2medic.integration.service.CacheManagementService
-import de.uksh.medic.cxx2medic.integration.service.RecoveryPersistenceService
-import de.uksh.medic.cxx2medic.integration.service.lastSuccessfulCompletionIntervalStart
+import de.uksh.medic.cxx2medic.integration.service.resilience.RecoveryPersistenceService
+import de.uksh.medic.cxx2medic.integration.service.resilience.lastSuccessfulCompletionIntervalStart
+import de.uksh.medic.cxx2medic.integration.status.RunStatus
 import org.apache.logging.log4j.LogManager
 import org.apache.logging.log4j.Logger
-import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.integration.config.EnableIntegration
@@ -18,7 +16,6 @@ import org.springframework.scheduling.support.CronTrigger
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import kotlin.math.log
 
 private typealias RecoveryData = RecoveryPersistenceService.RecoveryData
 
@@ -27,12 +24,22 @@ private typealias RecoveryData = RecoveryPersistenceService.RecoveryData
 class GlobalCronTriggerConfiguration(
     settings: ScheduleSettings,
     private val cacheManagerService: CacheManagementService,
-    private val recoveryService: RecoveryPersistenceService
+    private val recoveryService: Option<RecoveryPersistenceService>
 )
 {
     private val triggerContext: UpToDateTriggerContext =
-        recoveryService.get(RecoveryData.lastSuccessfulCompletionIntervalStart).getOrThrow().fold(
-            {
+        recoveryService.onNone { logger.warn("Recovery is disabled. No backup data will be written") }
+            .flatMap { it.get(RecoveryData.lastSuccessfulCompletionIntervalStart).fold(
+                { o -> o.map { value ->
+                    logger.info("Detected recovery timestamp [${formatter.format(value)}]")
+                    UpToDateTriggerContext(value, value, value)
+                }},
+                { t ->
+                    logger.warn("Failed to acquire 'lastsSuccessfulCompletionIntervalStart' timestamp", t)
+                    None
+                }
+            ) }
+            .getOrElse {
                 when (val ts = settings.catchupFrom) {
                     is None -> {
                         val value = Instant.now()
@@ -45,12 +52,7 @@ class GlobalCronTriggerConfiguration(
                         UpToDateTriggerContext(value, value, value)
                     }
                 }
-            },
-            { value ->
-                logger.info("Detected recovery timestamp [${formatter.format(value)}]")
-                UpToDateTriggerContext(value, value, value)
             }
-        )
 
     private val trigger: CronTrigger = object: CronTrigger(settings.cron)
     {
@@ -70,13 +72,21 @@ class GlobalCronTriggerConfiguration(
                 nextExecution
             )
             // Update recovery data
-            val lastCompletion = triggerContext.lastCompletion()
-            if (lastCompletion != null) {
-                logger.info("Updating recovery start timestamp")
-                recoveryService.update {
-                    RecoveryData.lastSuccessfulCompletionIntervalStart set Some(lastCompletion)
-                }.onFailure { throw RuntimeException("Failed to persist recovery data", it) }
+            recoveryService.onSome { service ->
+                // FIXME: Write Trigger and TriggerContext that actually provide a suitable timestamp for
+                //        "last successfully completed execution interval start". 'lastActualExecution' only serves as
+                //        an approximation
+                val lastActualExecution = triggerContext.lastActualExecution()
+                if (lastActualExecution != null && RunStatus.completedSuccessfully) {
+                    logger.info("Updating recovery start timestamp")
+                    service.update {
+                        RecoveryData.lastSuccessfulCompletionIntervalStart set Some(lastActualExecution)
+                    }.onFailure { throw RuntimeException("Failed to persist recovery data", it) }
+                }
             }
+
+            logger.info("Resetting run status")
+            RunStatus.completedSuccessfully = true
             return nextExecution
         }
     }

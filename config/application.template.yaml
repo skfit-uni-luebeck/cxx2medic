@@ -8,6 +8,13 @@ cxx:
     password: "<password>"
 #    parameters:
 #      <parameter-name>: <parameter-value>
+    resilience:
+      retry:
+        # NOTE: Durations can be either written using the ISO-8601 format or as the format returned by the Duration
+        # classes 'toString' method (see https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.time/-duration/to-string.html)
+        exponential: "100ms" # Initial waiting period increasing exponentially between failed attempts
+        maxInterval: "60s" # Max waiting period between requests
+        limit: 10 # Max retry attempts after the max wait time is reached. Omit to retry indefinitely
   fhir:
     url: "[http|https]://<base-url>/fhir"
     authorization:
@@ -19,6 +26,13 @@ cxx:
 #        accessTokenUrl: "[http|https]://<base-url>/path/to/request/token"
 #        clientId: "<client-id>"
 #        clientSecret: "<client-secret>"
+    resilience:
+      retry:
+        # NOTE: Durations can be either written using the ISO-8601 format or as the format returned by the Duration
+        # classes 'toString' method (see https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.time/-duration/to-string.html)
+        exponential: "100ms" # Initial waiting period increasing exponentially between failed attempts
+        maxInterval: "60s" # Max waiting period between requests
+        limit: 10 # Max retry attempts after the max wait time is reached. Omit to retry indefinitely
   criteriaFile: "/path/to/criteria/file"
   managingOrg: "<system-uri>|<org-id-value>"
   patientReferenceIdentifier: "Patient.identifier.where(<identifier-criteria>).first()"
@@ -35,6 +49,13 @@ s3:
     secret: "<secret>"
 #  region: "(optional) <region-str>"
   bundleSizeLimit: <positive-number>
+  resilience:
+    retry:
+      # NOTE: Durations can be either written using the ISO-8601 format or as the format returned by the Duration
+      # classes 'toString' method (see https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.time/-duration/to-string.html)
+      exponential: "100ms" # Initial waiting period increasing exponentially between failed attempts
+      maxInterval: "60s" # Max waiting period between requests
+      limit: 10 # Max retry attempts after the max wait time is reached. Omit to retry indefinitely
 
 recovery:
   file: "path/where/recovery/file/should/live"
