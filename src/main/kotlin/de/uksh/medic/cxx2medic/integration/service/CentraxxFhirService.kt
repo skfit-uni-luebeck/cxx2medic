@@ -116,18 +116,18 @@ class CentraXXFhirService(
         )
 
     @Cacheable("fhirPatientCache", cacheManager = "cacheManager")
-    suspend fun readPatient(id: String): Option<Patient> =
-        read(id, "Patient") as Option<Patient>
+    suspend fun readPatient(id: String): Result<Option<Patient>> =
+        read(id, "Patient") as Result<Option<Patient>>
 
     // Caches for Consent resources are currently deactivated since they are checked for their policies and changes to
     // them are crucial to detect. Consequently, those resources should be kept up to date. Alternatively one could
     // reset the cache before each run to at least cache resources within a single run
     @Cacheable("fhirConsentCache", cacheManager = "cacheManager")
-    suspend fun readConsent(id: String): Option<Consent> =
-        read(id, "Consent") as Option<Consent>
+    suspend fun readConsent(id: String): Result<Option<Consent>> =
+        read(id, "Consent") as Result<Option<Consent>>
 
-    suspend fun readSpecimen(id: String): Option<Specimen> =
-        read(id, "Specimen") as Option<Specimen>
+    suspend fun readSpecimen(id: String): Result<Option<Specimen>> =
+        read(id, "Specimen") as Result<Option<Specimen>>
 
     companion object
     {
