@@ -51,14 +51,14 @@ class RetrySettings(
     val maxInterval: Duration = Duration.parse(maxInterval)
 
     fun schedule(causes: Set<KClass<out Throwable>>) =
-        if (exponential == Duration.ZERO || maxInterval == Duration.ZERO) Schedule.identity<Throwable>()
-        else Schedule.exponential<Throwable>(exponential)
+        if (exponential == Duration.ZERO || maxInterval == Duration.ZERO) Schedule.recurs<Throwable>(0)
+        else (Schedule.exponential<Throwable>(exponential)
             .doWhile { _, d -> d < maxInterval }
             .andThen(
                 Schedule.spaced<Throwable>(maxInterval) and
                         (if (limit < Long.MAX_VALUE) Schedule.recurs(limit) else Schedule.forever())
             )
-            .doWhile { t, _ -> causes.any { t isOrCausedBy it } }
+            .doWhile { t, _ -> causes.any { t isOrCausedBy it } })
 
     fun schedule(vararg causes: KClass<out Throwable>) =
         schedule(if (causes.isNotEmpty()) causes.toSet() else setOf(ConnectException::class))
