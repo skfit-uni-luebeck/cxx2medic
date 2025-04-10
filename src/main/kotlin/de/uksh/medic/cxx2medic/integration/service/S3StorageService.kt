@@ -5,13 +5,17 @@ import arrow.resilience.retryEither
 import de.uksh.medic.cxx2medic.config.ResilienceSettings
 import de.uksh.medic.cxx2medic.config.S3Settings
 import de.uksh.medic.cxx2medic.exception.BucketCreationException
+import de.uksh.medic.cxx2medic.exception.ConnectionException
 import de.uksh.medic.cxx2medic.exception.ObjectStoringException
+import de.uksh.medic.cxx2medic.util.exception.find
+import de.uksh.medic.cxx2medic.util.exception.isOrCausedBy
 import de.uksh.medic.cxx2medic.util.functional.toResult
 import io.github.resilience4j.ratelimiter.RateLimiter
 import io.minio.BucketExistsArgs
 import io.minio.MakeBucketArgs
 import io.minio.MinioClient
 import io.minio.PutObjectArgs
+import io.minio.errors.ServerException
 import org.apache.http.entity.ContentType
 import org.apache.logging.log4j.LogManager
 import org.apache.logging.log4j.Logger
@@ -31,7 +35,11 @@ class MinioStorageService(
     @Autowired settings: S3Settings,
 ): S3StorageService
 {
-    private val retrySchedule = settings.resilience.retry.schedule(ConnectException::class).log { t, _ ->
+    private val retrySchedule = settings.resilience.retry.templateSchedule { t, _ -> when {
+        t isOrCausedBy ConnectException::class -> true
+        t isOrCausedBy ServerException::class -> t.find(ServerException::class).getOrNull()!!.statusCode() == 500
+        else -> false
+    } }.log { t, _ ->
         logger.warn("Retrying request. Reason: $t")
     }
 

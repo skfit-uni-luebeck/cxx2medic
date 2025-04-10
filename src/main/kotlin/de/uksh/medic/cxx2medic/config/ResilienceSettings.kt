@@ -50,16 +50,24 @@ class RetrySettings(
     val exponential: Duration = Duration.parse(exponential)
     val maxInterval: Duration = Duration.parse(maxInterval)
 
-    fun schedule(causes: Set<KClass<out Throwable>>) =
-        if (exponential == Duration.ZERO || maxInterval == Duration.ZERO) Schedule.recurs<Throwable>(0)
+    fun templateSchedule(cond: suspend (@UnsafeVariance Throwable, Any) -> Boolean)  =
+        if (exponential == Duration.ZERO || maxInterval == Duration.ZERO) NO_RETRY
         else (Schedule.exponential<Throwable>(exponential)
             .doWhile { _, d -> d < maxInterval }
             .andThen(
                 Schedule.spaced<Throwable>(maxInterval) and
                         (if (limit < Long.MAX_VALUE) Schedule.recurs(limit) else Schedule.forever())
             )
-            .doWhile { t, _ -> causes.any { t isOrCausedBy it } })
+            .doWhile(cond))
+
+    fun schedule(causes: Set<KClass<out Throwable>>) =
+        templateSchedule { t, _ -> causes.any { t isOrCausedBy it } }
 
     fun schedule(vararg causes: KClass<out Throwable>) =
         schedule(if (causes.isNotEmpty()) causes.toSet() else setOf(ConnectException::class))
+
+    companion object
+    {
+        private val NO_RETRY: Schedule<Throwable, Long> = Schedule.recurs<Throwable>(0)
+    }
 }

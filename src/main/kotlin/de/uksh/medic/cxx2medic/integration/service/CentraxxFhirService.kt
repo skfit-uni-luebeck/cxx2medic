@@ -11,6 +11,7 @@ import ca.uhn.fhir.rest.client.apache.ApacheHttpClient
 import ca.uhn.fhir.rest.client.api.IGenericClient
 import ca.uhn.fhir.rest.client.api.ServerValidationModeEnum
 import ca.uhn.fhir.rest.client.interceptor.BasicAuthInterceptor
+import ca.uhn.fhir.rest.server.exceptions.InternalErrorException
 import ca.uhn.fhir.rest.server.exceptions.ResourceNotFoundException
 import de.uksh.medic.cxx2medic.authentication.OAuthClientCredentials
 import de.uksh.medic.cxx2medic.authentication.OAuthPasswordCredentials
@@ -58,7 +59,9 @@ class CentraXXFhirService(
             )))
         }
     }
-    private val retrySchedule = settings.resilience.retry.schedule(ConnectException::class).log { t, _ ->
+    private val retrySchedule = settings.resilience.retry.schedule(
+        ConnectException::class, InternalErrorException::class
+    ).log { t, _ ->
         logger.warn("Retrying request. Reason: $t")
     }
 
