@@ -46,7 +46,7 @@ dependencies {
     implementation 'org.fhir:ucum:1.0.9'
 
     // Database drivers
-    implementation 'org.postgresql:postgresql:42.7.4'
+    implementation 'org.postgresql:postgresql:42.7.8'
     implementation 'com.microsoft.sqlserver:mssql-jdbc:12.8.1.jre11'
 
     // Functional
