@@ -1,0 +1,11 @@
+{
+  "description": "Criteria for specimen data export at some site",
+  "constants": {
+    "patientIdentifierTypeCode": "HIS-ID"
+  },
+  "variables": {},
+  "criteria": [
+    "Specimen.container.specimenQuantity.value.exists($this > 0)",
+    "Consent.status = 'active'"
+  ]
+}

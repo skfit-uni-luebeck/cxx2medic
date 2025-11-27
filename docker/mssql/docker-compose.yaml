@@ -1,0 +1,78 @@
+name: cxx2medic-mssql
+
+services:
+  mssql:
+    #user: "mssql:root"
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    ports:
+      - "9433:1433"
+    volumes:
+      - ./init/init-database.bash:/var/opt/mssql/init/init-database.bash:ro
+      - ./init/init-database.sql:/var/opt/mssql/init/init-database.sql:ro
+    #  - mssql-data:/var/opt/mssql/data:rw
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_PID=Evaluation
+      - MSSQL_SA_PASSWORD=supersecretpassword1#
+    post_start:
+      - command: "bash /var/opt/mssql/init/init-database.bash"
+    healthcheck:
+      test: [ "CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -C -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q \"SELECT 1\" -b -o /dev/null" ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  blaze:
+    image: samply/blaze:1.2.0
+    ports:
+      - "9080:8080"
+    volumes:
+      - blaze-data:/app/data:rw
+      - ./init/init-fhirserver.bash:/app/init/init-fhirserver.bash:ro
+      - ./init/bundle.json:/app/init/bundle.json:ro
+    environment:
+      - ENFORCE_REFERENTIAL_INTEGRITY=false
+      - BASE_URL=http://localhost:9080
+    post_start:
+      - command: "bash /app/init/init-fhirserver.bash"
+    healthcheck:
+      test: [ "CMD-SHELL",  "curl --silent --fail http://localhost:8080/health || exit 1" ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  minio:
+    image: quay.io/minio/minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=minio
+      - MINIO_ROOT_PASSWORD=supersecretpassword
+    command: "server /data --console-address \":9001\""
+    volumes:
+      - minio-data:/data:rw
+    healthcheck:
+      test: [ "CMD-SHELL", "curl --silent --fail http://localhost:9001/minio/health/live || exit 1" ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  cxx2kafka:
+    build:
+      context: ../..
+      dockerfile: docker/Dockerfile
+    volumes:
+      - ./config/:/app/config
+    depends_on:
+      mssql:
+        condition: service_healthy
+      blaze:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+volumes:
+  mssql-data:
+  blaze-data:
+  minio-data:

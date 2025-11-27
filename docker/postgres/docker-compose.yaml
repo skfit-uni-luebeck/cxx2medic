@@ -1,0 +1,72 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:9432"
+    volumes:
+      - ./init/init-database.sql:/docker-entrypoint-initdb.d/init-database.sql:ro
+      - postgres-data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=postgres
+    healthcheck:
+      test: [ "CMD-SHELL", "sh -c 'pg_isready -U postgres -d postgres'" ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  blaze:
+    image: samply/blaze:1.2.0
+    ports:
+      - "9080:8080"
+    volumes:
+      - blaze-data:/app/data:rw
+      - ./init/init-fhirserver.bash:/app/init/init-fhirserver.bash:ro
+      - ./init/bundle.json:/app/init/bundle.json:ro
+    environment:
+      - ENFORCE_REFERENTIAL_INTEGRITY=false
+      - BASE_URL=http://localhost:9080
+    post_start:
+      - command: "bash /app/init/init-fhirserver.bash"
+    healthcheck:
+      test: [ "CMD-SHELL",  "curl --silent --fail http://localhost:8080/health || exit 1" ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  minio:
+    image: quay.io/minio/minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=minio
+      - MINIO_ROOT_PASSWORD=supersecretpassword
+    command: "server /data --console-address \":9001\""
+    volumes:
+      - minio-data:/data:rw
+    healthcheck:
+      test: [ "CMD-SHELL", "curl --silent --fail http://localhost:9001/minio/health/live || exit 1" ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  cxx2kafka:
+    build:
+      context: ../..
+      dockerfile: docker/Dockerfile
+    volumes:
+      - ./config/:/app/config
+    depends_on:
+      postgres:
+        condition: service_healthy
+      blaze:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
+  blaze-data:
+  minio-data:

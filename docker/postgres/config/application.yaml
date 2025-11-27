@@ -1,0 +1,58 @@
+cxx:
+  database:
+    type: "sqlserver"
+    host: "localhost"
+    port: 8433
+    name: "tempdb"
+    username: "sa"
+    password: "supersecretpassword1#"
+    parameters:
+      TrustServerCertificate: true
+    resilience:
+      retry:
+        exponential: "100ms"
+        maxInterval: "60s"
+  fhir:
+    url: "http://localhost:8080/fhir"
+    authorization:
+      basic:
+        username: "test"
+        password: "test"
+    resilience:
+      retry:
+        exponential: "100ms"
+        maxInterval: "60s"
+  criteriaFile: "config/criteria.json"
+  managingOrg: "https://medic.uksh.de/identifier/organization|UKSH-L"
+  patientReferenceIdentifier: "Patient.identifier.where(type.coding.exists(system = 'https://fhir.centraxx.de/system/idContainerType' and code = 'KIS-ID') and value.exists()).first()"
+
+schedule:
+  cron: "0/10 * * * * *"
+  catchupFrom: "2025-01-01T00:00:00"
+
+s3:
+  url: "http://localhost:9000"
+  bucketName: "cxx-specimen"
+  access:
+    key: "g6uI8W6Wcho0KrWjVCcN"
+    secret: "Fg8mCKSTly4UWszbLP1ozNWk998r5pactLMePgaL"
+  region: "eu-central-1"
+  bundleSizeLimit: 10
+  resilience:
+    retry:
+      exponential: "100ms"
+      maxInterval: "60s"
+
+recovery:
+  enabled: true
+  dataDir: "data"
+
+logging:
+  config: "config/logback-spring.xml"
+#  level:
+#    root: INFO
+#  file:
+#    name: "logs/log.txt"
+#    max-size: 10MB
+#    max-history: 10
+#  path: "logs"
