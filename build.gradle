@@ -39,10 +39,10 @@ dependencies {
     implementation("com.xenomachina:kotlin-argparser:2.0.7")
 
     // FHIR
-    implementation 'ca.uhn.hapi.fhir:hapi-fhir-base:7.6.0'
-    implementation 'ca.uhn.hapi.fhir:hapi-fhir-structures-r4:7.6.0'
-    implementation 'ca.uhn.hapi.fhir:hapi-fhir-client:7.6.0'
-    implementation 'ca.uhn.hapi.fhir:hapi-fhir-caching-caffeine:7.6.0'
+    implementation 'ca.uhn.hapi.fhir:hapi-fhir-base:8.6.0'
+    implementation 'ca.uhn.hapi.fhir:hapi-fhir-structures-r4:8.6.0'
+    implementation 'ca.uhn.hapi.fhir:hapi-fhir-client:8.6.0'
+    implementation 'ca.uhn.hapi.fhir:hapi-fhir-caching-caffeine:8.6.0'
     implementation 'org.fhir:ucum:1.0.9'
 
     // Database drivers
